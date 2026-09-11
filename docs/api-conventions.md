@@ -21,21 +21,21 @@
 - Use plural nouns for collections: `/api/issues`, `/api/categories`.
 - Nested resources represent hierarchy: `/api/issues/{id}/comments`, `/api/issues/{id}/support`.
 
-### Core Endpoint Conventions (Future Specifications)
+### Core Endpoint Conventions
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/issues` | List issues with filtering, pagination, and sorting |
-| `GET` | `/api/issues/{id}` | Get detailed information for a single issue |
-| `POST` | `/api/issues` | Create/report a new civic issue |
-| `PATCH` | `/api/issues/{id}` | Partially update issue status, category, or metadata |
-| `GET` | `/api/issues/nearby` | Spatial query for issues within a radius (PostGIS `ST_DWithin`) |
-| `POST` | `/api/issues/{id}/support` | Add community upvote ("Support") to an issue |
-| `DELETE` | `/api/issues/{id}/support` | Remove community upvote from an issue |
-| `GET` | `/api/issues/{id}/comments` | List comments and updates on an issue |
-| `POST` | `/api/issues/{id}/comments` | Add a comment or resolution evidence to an issue |
-| `GET` | `/api/categories` | List active civic categories (Roads, Garbage, etc.) |
-| `GET` | `/api/health` | Service health status (`UP`, `nagrivic-backend`) |
+| Method | Endpoint | Status | Description |
+|---|---|---|---|
+| `POST` | `/api/issues` | **Implemented** | Report a new civic issue (`title`, `description`, `categoryId`, `locationId`, `reportedBy`) |
+| `GET` | `/api/issues/{id}` | **Implemented** | Get detailed information for a single issue |
+| `GET` | `/api/issues` | **Implemented** | List issues with pagination (`page`, `size`), sorting (`createdAt DESC`), and filters (`status`, `categoryId`, `reportedBy`) |
+| `GET` | `/api/health` | **Implemented** | Service health status (`UP`, `nagrivic-backend`) |
+| `PATCH` | `/api/issues/{id}` | *Deferred* | Partially update issue status, category, or metadata |
+| `GET` | `/api/issues/nearby` | *Deferred* | Spatial query for issues within a radius (PostGIS `ST_DWithin`) |
+| `POST` | `/api/issues/{id}/support` | *Deferred* | Add community upvote ("Support") to an issue |
+| `DELETE` | `/api/issues/{id}/support` | *Deferred* | Remove community upvote from an issue |
+| `GET` | `/api/issues/{id}/comments` | *Deferred* | List comments and updates on an issue |
+| `POST` | `/api/issues/{id}/comments` | *Deferred* | Add a comment or resolution evidence to an issue |
+| `GET` | `/api/categories` | *Deferred* | List active civic categories (Roads, Garbage, etc.) |
 
 ---
 
@@ -152,3 +152,76 @@ Collections accept standard URL query parameters:
 2. **Timestamps**:
    - All timestamps transmitted across API boundaries must be in **ISO-8601 UTC format**: `YYYY-MM-DDTHH:mm:ssZ` (e.g., `2026-09-11T11:06:59Z`).
    - Timezones are converted to the citizen's local time (IST - Indian Standard Time) on the client side.
+
+---
+
+## 7. Implemented Issue Endpoints Specification (Task 9)
+
+### 1. Report Civic Issue (`POST /api/issues`)
+- **Status**: `201 Created` with `Location: /api/issues/{id}` header.
+- **Request Body**:
+  ```json
+  {
+    "title": "Severe pothole near Ring Road junction",
+    "description": "Deep crater on outer lane causing dangerous vehicle swerves.",
+    "categoryId": "c0000000-0000-0000-0000-000000000001",
+    "locationId": "11111111-1111-1111-1111-111111111111",
+    "reportedBy": "22222222-2222-2222-2222-222222222222"
+  }
+  ```
+- **Validation Rules**:
+  - `title`: Required, non-blank, maximum 255 characters.
+  - `description`: Optional/sensible, maximum 5000 characters.
+  - `categoryId`: Required UUID, category must exist and be `is_active = true`.
+  - `locationId`: Required UUID, location must exist.
+  - `reportedBy`: Required UUID, user must exist. *(Temporary development convenience: will be replaced by authenticated JWT identity in the authentication task).*
+  - `status`: Automatically initialized to `REPORTED`. Clients cannot choose or override status.
+
+### 2. Get Issue by ID (`GET /api/issues/{id}`)
+- **Status**: `200 OK` on success, `404 Not Found` if nonexistent, `400 Bad Request` if malformed UUID.
+- **Response Body**:
+  ```json
+  {
+    "id": "e3b0c442-98fc-1c14-9afb-4c700203f567",
+    "reportedBy": "22222222-2222-2222-2222-222222222222",
+    "category": {
+      "id": "c0000000-0000-0000-0000-000000000001",
+      "name": "Roads / Potholes",
+      "slug": "roads-potholes"
+    },
+    "location": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "latitude": 23.0225,
+      "longitude": 72.5714,
+      "accuracyMeters": 5.0
+    },
+    "title": "Severe pothole near Ring Road junction",
+    "description": "Deep crater on outer lane causing dangerous vehicle swerves.",
+    "status": "REPORTED",
+    "media": [],
+    "createdAt": "2026-09-11T14:20:00Z",
+    "updatedAt": "2026-09-11T14:20:00Z"
+  }
+  ```
+
+### 3. List Issues (`GET /api/issues`)
+- **Status**: `200 OK`.
+- **Query Parameters**:
+  - `status`: Optional `IssueStatus` enum (`REPORTED`, `VERIFIED`, `IN_PROGRESS`, etc.).
+  - `categoryId`: Optional UUID filtering by civic category.
+  - `reportedBy`: Optional UUID filtering by reporter.
+  - `page`: Zero-based page index (default: `0`, min: `0`).
+  - `size`: Page size (default: `20`, clamped to max: `100`).
+- **Sorting**: Default `createdAt DESC` (newest issues first).
+- **Paginated Response Envelope**:
+  ```json
+  {
+    "content": [ ... ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true
+  }
+  ```
