@@ -5,6 +5,8 @@ import org.nagrivic.modules.categories.repository.CategoryRepository;
 import org.nagrivic.modules.issues.entity.IssueEntity;
 import org.nagrivic.modules.issues.model.IssueStatus;
 import org.nagrivic.modules.issues.repository.IssueRepository;
+import org.nagrivic.modules.locations.entity.LocationEntity;
+import org.nagrivic.modules.locations.repository.LocationRepository;
 import org.nagrivic.modules.users.entity.UserEntity;
 import org.nagrivic.modules.users.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -21,19 +23,22 @@ public class IssueService {
     private final IssueRepository issueRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final LocationRepository locationRepository;
 
     public IssueService(
             IssueRepository issueRepository,
             UserRepository userRepository,
-            CategoryRepository categoryRepository
+            CategoryRepository categoryRepository,
+            LocationRepository locationRepository
     ) {
         this.issueRepository = issueRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
+        this.locationRepository = locationRepository;
     }
 
     @Transactional
-    public IssueEntity createIssue(UUID reportedBy, UUID categoryId, String title, String description) {
+    public IssueEntity createIssue(UUID reportedBy, UUID categoryId, UUID locationId, String title, String description) {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("Issue title cannot be blank");
         }
@@ -47,7 +52,10 @@ public class IssueService {
             throw new IllegalArgumentException("Cannot report an issue under an inactive category: " + category.getName());
         }
 
-        IssueEntity issue = new IssueEntity(reporter, category, title.trim(), description);
+        LocationEntity location = locationRepository.findById(locationId)
+                .orElseThrow(() -> new IllegalArgumentException("Location not found: " + locationId));
+
+        IssueEntity issue = new IssueEntity(reporter, category, location, title.trim(), description);
         return issueRepository.save(issue);
     }
 

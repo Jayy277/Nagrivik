@@ -3,6 +3,7 @@ package org.nagrivic.modules.issues.entity;
 import jakarta.persistence.*;
 import org.nagrivic.modules.categories.entity.CategoryEntity;
 import org.nagrivic.modules.issues.model.IssueStatus;
+import org.nagrivic.modules.locations.entity.LocationEntity;
 import org.nagrivic.modules.users.entity.UserEntity;
 
 import java.time.Instant;
@@ -24,6 +25,10 @@ public class IssueEntity {
     @JoinColumn(name = "category_id", nullable = false)
     private CategoryEntity category;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "location_id", nullable = false)
+    private LocationEntity location;
+
     @Column(name = "title", nullable = false, length = 255)
     private String title;
 
@@ -43,9 +48,10 @@ public class IssueEntity {
     public IssueEntity() {
     }
 
-    public IssueEntity(UserEntity reporter, CategoryEntity category, String title, String description) {
+    public IssueEntity(UserEntity reporter, CategoryEntity category, LocationEntity location, String title, String description) {
         this.reporter = reporter;
         this.category = category;
+        this.location = location;
         this.title = title;
         this.description = description;
         this.status = IssueStatus.REPORTED;
@@ -92,6 +98,14 @@ public class IssueEntity {
 
     public void setCategory(CategoryEntity category) {
         this.category = category;
+    }
+
+    public LocationEntity getLocation() {
+        return location;
+    }
+
+    public void setLocation(LocationEntity location) {
+        this.location = location;
     }
 
     public String getTitle() {

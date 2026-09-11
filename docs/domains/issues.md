@@ -15,6 +15,7 @@ The Issue domain acts as the core transactional anchor around which civic accoun
 | `id` | `id` | `UUID` | No | Primary key identifier (UUIDv4). |
 | `reportedBy` | `reported_by` | `UUID` | No | Foreign key referencing `users(id)` with `ON DELETE RESTRICT`. |
 | `category` | `category_id` | `UUID` | No | Foreign key referencing `categories(id)` with `ON DELETE RESTRICT`. |
+| `location` | `location_id` | `UUID` | No | Foreign key referencing `locations(id)` with `ON DELETE RESTRICT`. |
 | `title` | `title` | `VARCHAR(255)` | No | Brief human-readable summary of the civic problem (non-empty). |
 | `description` | `description` | `TEXT` | Yes | Extended contextual description provided by the citizen. |
 | `status` | `status` | `VARCHAR(32)` | No | Machine-friendly status enum value (default: `'REPORTED'`). |
@@ -41,7 +42,16 @@ Every civic issue is classified under exactly one category:
 
 ---
 
-## 5. Status Representation
+## 5. Relationship with Location Domain
+
+Every civic issue is anchored to an authoritative geographic point:
+- **Foreign Key**: `issues.location_id -> locations.id`
+- **Referential Integrity**: `ON DELETE RESTRICT` is enforced. Deleting a location linked to an active civic issue is prohibited.
+- **PostGIS Point**: Location domain manages the single source of truth (`geometry(Point, 4326)`). Coordinates are not duplicated in the `issues` table.
+
+---
+
+## 6. Status Representation
 
 The initial issue lifecycle representation uses stable, machine-friendly enum values:
 
@@ -54,25 +64,26 @@ The initial issue lifecycle representation uses stable, machine-friendly enum va
 
 ---
 
-## 6. Database Indexes & Constraints
+## 7. Database Indexes & Constraints
 
 - **Foreign Key Constraints**:
   - `fk_issues_reported_by` referencing `users(id)` with `ON DELETE RESTRICT`.
   - `fk_issues_category_id` referencing `categories(id)` with `ON DELETE RESTRICT`.
+  - `fk_issues_location_id` referencing `locations(id)` with `ON DELETE RESTRICT`.
 - **Title Check Constraint**: `chk_issues_title_not_empty` ensuring `LENGTH(TRIM(title)) > 0`.
 - **Indexes**:
   - `idx_issues_reported_by`: Fast lookup of issues reported by a specific citizen.
   - `idx_issues_category_id`: Fast filtering of issues by category.
+  - `idx_issues_location_id`: Fast join / navigation to location.
   - `idx_issues_status`: High-speed filtering by issue status.
   - `idx_issues_created_at`: Chronological timeline queries (`created_at DESC`).
 
 ---
 
-## 7. Explicitly Excluded Future Domains
+## 8. Explicitly Excluded Future Domains
 
 To keep the architecture clean and modular, the following capabilities are **intentionally excluded** and will be designed in their respective dedicated tasks:
 
-- **Location & PostGIS**: Latitude, longitude, `geography(Point, 4326)`, and ward boundary polygon containment (`ST_Contains`) belong to the dedicated Location domain.
 - **Media**: Evidence attachments, photos, videos, and S3 pre-signed URLs belong to the Media domain (`issue_media`).
 - **Supports**: Community upvoting and endorsement counts belong to the Support domain.
 - **Comments**: Citizen and official discussion threads belong to the Comments domain.

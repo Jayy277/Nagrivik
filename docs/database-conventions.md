@@ -108,23 +108,25 @@ Nagrivic uses **Flyway** for deterministic, repeatable database schema versionin
 
 ## 6. Spatial Data Strategy (PostGIS)
 
-Nagrivic handles two distinct geographic representations:
+Nagrivic uses **PostGIS** with the WGS 84 geographic coordinate reference system (EPSG: 4326):
 
-### 1. Point Locations (Issue Reports)
-- Use `geography(Point, 4326)` for citizen issue coordinates:
+### 1. Point Locations (`locations` table)
+- Civic problem points are stored in the dedicated `locations` table:
   ```sql
-  location geography(Point, 4326) NOT NULL
+  location_point geometry(Point, 4326) NOT NULL
   ```
-- **Why Geography?** Calculations on `geography` automatically compute true great-circle surface distances in meters (e.g., `ST_DWithin(location, target_point, 15)` measures exactly 15 meters) without requiring projection transformations.
+- **Coordinate Order**: Strictly `POINT(longitude latitude)` (X=longitude `[-180.0, +180.0]`, Y=latitude `[-90.0, +90.0]`).
+- **Single Source of Truth**: Coordinates are stored once in `locations.location_point`. Issues reference `locations.id` via `location_id UUID REFERENCES locations(id) ON DELETE RESTRICT`.
+- **Proximity Calculations**: Future spatial distance queries can use `ST_DWithin(location_point::geography, target_point::geography, radius_meters)`.
 
-### 2. Boundary Polygons (Wards, Zones, Jurisdictions)
+### 2. Boundary Polygons (Wards, Zones, Jurisdictions - Future Scope)
 - Use `geometry(Polygon, 4326)` or `geometry(MultiPolygon, 4326)` for administrative boundaries:
   ```sql
   geom geometry(MultiPolygon, 4326) NOT NULL
   ```
 - Boundary containment queries use `ST_Contains`:
   ```sql
-  -- Find which ward contains a given point
+  -- Find which ward contains a given issue point
   SELECT ward_id, ward_name FROM ward_boundaries
   WHERE ST_Contains(geom, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326));
   ```
@@ -132,8 +134,7 @@ Nagrivic handles two distinct geographic representations:
 ### Spatial Indexing (Mandatory)
 Every spatial column must have a GiST index to support sub-millisecond queries:
 ```sql
-CREATE INDEX idx_issues_location_gist ON issues USING GIST (location);
-CREATE INDEX idx_ward_boundaries_geom_gist ON ward_boundaries USING GIST (geom);
+CREATE INDEX idx_locations_location_point_gist ON locations USING GIST (location_point);
 ```
 
 ---

@@ -2,6 +2,7 @@ package org.nagrivic.modules.issues.dto;
 
 import org.nagrivic.modules.issues.entity.IssueEntity;
 import org.nagrivic.modules.issues.model.IssueStatus;
+import org.nagrivic.modules.locations.dto.LocationResponse;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -10,6 +11,7 @@ public record IssueResponse(
     UUID id,
     UUID reportedBy,
     CategorySummary category,
+    LocationResponse location,
     String title,
     String description,
     IssueStatus status,
@@ -32,10 +34,16 @@ public record IssueResponse(
             );
         }
 
+        LocationResponse locationResponse = null;
+        if (entity.getLocation() != null) {
+            locationResponse = LocationResponse.fromEntity(entity.getLocation());
+        }
+
         return new IssueResponse(
             entity.getId(),
             entity.getReporter() != null ? entity.getReporter().getId() : null,
             categorySummary,
+            locationResponse,
             entity.getTitle(),
             entity.getDescription(),
             entity.getStatus(),
