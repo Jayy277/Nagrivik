@@ -1,18 +1,97 @@
-# Nagrivic Database Conventions
+# Nagrivic Database Conventions & Infrastructure
 
-> **Notice**: This document outlines PostgreSQL and PostGIS data modeling conventions and standards for Nagrivic. The schema definitions shown here are illustrative specifications and must not be implemented until their respective database implementation phase.
+> **Notice**: This document outlines PostgreSQL and PostGIS data modeling conventions, infrastructure configurations, and migration standards for Nagrivic. Business tables (`users`, `issues`, `categories`, `departments`, etc.) will be introduced incrementally in future tasks.
 
 ---
 
 ## 1. Database Technologies
 
-- **Database Engine**: PostgreSQL 15+
-- **Spatial Extension**: PostGIS 3.3+
+- **Database Engine**: PostgreSQL 15+ (PostgreSQL 16 in Docker Compose)
+- **Spatial Extension**: PostGIS 3.3+ (PostGIS 3.4 in Docker Compose)
 - **Coordinate Reference System (CRS)**: WGS 84 (EPSG: 4326)
+- **Migration Management**: Flyway
+- **ORM / Persistence**: Spring Data JPA / Hibernate (with DDL auto-generation disabled)
 
 ---
 
-## 2. Naming Conventions
+## 2. Local Development Database (Docker Compose)
+
+The local development database is defined in `docker-compose.yml` at the repository root using the official PostGIS image:
+
+```yaml
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: nagrivic-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nagrivic}
+      POSTGRES_USER: ${DB_USERNAME:-nagrivic}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-nagrivic_dev_secret}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - nagrivic_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-nagrivic} -d ${DB_NAME:-nagrivic}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  nagrivic_pgdata:
+    name: nagrivic_pgdata
+```
+
+### Local Database Management Commands
+
+| Action | Command |
+|---|---|
+| **Start Database** | `docker compose up -d` |
+| **Stop Database** | `docker compose down` |
+| **Check Database Status** | `docker compose ps` |
+| **View Database Logs** | `docker compose logs -f db` |
+| **Connect via psql** | `docker compose exec -it db psql -U nagrivic -d nagrivic` |
+
+---
+
+## 3. Environment Variable Configuration
+
+All database connection parameters are injected via environment variables. Real production secrets must never be committed to Git.
+
+| Variable | Default (Local Dev) | Description |
+|---|---|---|
+| `DB_HOST` | `localhost` | Database host address. |
+| `DB_PORT` | `5432` | Database port number. |
+| `DB_NAME` | `nagrivic` | PostgreSQL database name. |
+| `DB_USERNAME` | `nagrivic` | Database username. |
+| `DB_PASSWORD` | `nagrivic_dev_secret` | Database user password (local-only default). |
+| `DB_URL` | `jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}` | JDBC connection URL. |
+| `FLYWAY_ENABLED`| `true` | Enables or disables automated Flyway migrations on startup. |
+| `JPA_DDL_AUTO` | `validate` | Hibernate DDL validation mode (`validate` or `none`). |
+
+---
+
+## 4. Migration Strategy (Flyway)
+
+Nagrivic uses **Flyway** for deterministic, repeatable database schema versioning:
+
+- **Location**: `backend/src/main/resources/db/migration`
+- **Naming Convention**: `V<version>__<description>.sql` (e.g., `V1__enable_postgis.sql`, `V2__create_users_table.sql`).
+- **Initial Migration (`V1__enable_postgis.sql`)**:
+  ```sql
+  CREATE EXTENSION IF NOT EXISTS postgis;
+  ```
+  *Note: The initial migration exclusively enables the PostGIS extension. Zero business tables are created in Task 3.*
+- **Schema Management Rules**:
+  1. Hibernate `ddl-auto` is set to `validate` (or `none`). Hibernate must **never** create or alter database tables automatically.
+  2. All DDL changes must be authored as immutable, forward-only Flyway SQL scripts.
+  3. Once applied, migration files must never be edited. Changes require a new versioned script.
+
+---
+
+## 5. Naming Conventions
 
 | Element | Convention | Example | Rationale |
 |---|---|---|---|
@@ -27,32 +106,7 @@
 
 ---
 
-## 3. Data Types & Column Standards
-
-### Primary Keys
-- Use `UUID` (UUIDv4) as primary keys for application entities (`issues`, `users`, `comments`, `media_attachments`).
-- Rationale: Non-enumerable, globally unique, safe for client-side optimistic ID generation, prevents sequential scraping.
-
-### Timestamps
-- Use `TIMESTAMPTZ` (Timestamp with Time Zone) for all point-in-time fields.
-- Store all timestamps in UTC (`DEFAULT NOW()` or `CURRENT_TIMESTAMP`).
-- Standard audit timestamps on every mutable table:
-  ```sql
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  ```
-
-### Strings & Text
-- Use `VARCHAR(n)` where a strict physical limit exists (e.g., `phone_number VARCHAR(15)`, `postal_code VARCHAR(10)`).
-- Use `TEXT` for freeform content (e.g., `description`, `comment_text`) rather than arbitrary `VARCHAR(255)` limits.
-
-### Status & Enumerations
-- Store status as `VARCHAR(32)` representing uppercase enum keys (e.g., `'SUBMITTED'`, `'IN_PROGRESS'`, `'RESOLVED'`).
-- Avoid PostgreSQL native `CREATE TYPE ... AS ENUM` in early phases because altering existing native enum values requires complex DDL migrations.
-
----
-
-## 4. PostGIS Spatial Column Standards
+## 6. Spatial Data Strategy (PostGIS)
 
 Nagrivic handles two distinct geographic representations:
 
@@ -84,7 +138,7 @@ CREATE INDEX idx_ward_boundaries_geom_gist ON ward_boundaries USING GIST (geom);
 
 ---
 
-## 5. Audit & Deletion Patterns
+## 7. Audit & Deletion Patterns
 
 ### Audit Columns
 Entities that undergo administrative moderation or user edits should include:
@@ -100,11 +154,3 @@ updated_by UUID NULL REFERENCES users(id)
   deleted_at TIMESTAMPTZ NULL
   ```
 - High-frequency citizen engagement tables (e.g., `supports`) use hard deletion (`DELETE FROM supports WHERE ...`) to keep tables lean and indexes small.
-
----
-
-## 6. Migration & Evolution Standards
-
-- Schema changes will be managed via **Flyway** migration scripts (`V1__...sql`, `V2__...sql`) in future database tasks.
-- Migrations must be backward-compatible with running backend instances.
-- Never write destructive migrations (e.g., dropping columns) in the same release that deprecates application usage.

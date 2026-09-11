@@ -37,7 +37,7 @@ Nagrivic tracks each issue through its entire lifecycle: verifying reports, dete
 | **Public Website** | Next.js, React, TypeScript | Foundation Established (`web/`) |
 | **Admin & Authority Dashboard** | Next.js, React, TypeScript | Foundation Established (`web/`) |
 | **Backend API** | Java 23, Spring Boot 4 (Modular Monolith) | Skeleton Active (`backend/`, `/api/health` UP) |
-| **Database** | PostgreSQL with PostGIS extension | Configured with env variables |
+| **Database** | PostgreSQL 16 + PostGIS 3.4 | Infrastructure Active (`docker-compose.yml`, Flyway `V1`) |
 | **Cache (Future)** | Redis (optional for MVP) | Planned |
 | **Object Storage (Future)** | S3-compatible cloud object storage | Planned |
 | **Notifications (Future)** | Firebase Cloud Messaging (FCM) & SMS | Planned |
@@ -78,7 +78,7 @@ Detailed technical specifications and design conventions are located in `docs/`:
 
 - [System Architecture (docs/architecture.md)](docs/architecture.md): Layer responsibilities, modular monolith rules, mobile/web structures, PostGIS rationale.
 - [REST API Conventions (docs/api-conventions.md)](docs/api-conventions.md): Base path, endpoint designs, HTTP codes, standard error envelope, pagination, spatial parameters.
-- [Database Conventions (docs/database-conventions.md)](docs/database-conventions.md): PostgreSQL + PostGIS standards, table/column naming, spatial types (`geography` vs `geometry`), GiST indexing.
+- [Database Conventions & Infrastructure (docs/database-conventions.md)](docs/database-conventions.md): PostgreSQL + PostGIS standards, Docker Compose setup, Flyway migration rules, spatial types (`geography` vs `geometry`), GiST indexing.
 - [Coding Standards (docs/coding-standards.md)](docs/coding-standards.md): TypeScript strict standards, Spring Boot layered architecture (Controller → Service → Repository), DTO records, Git conventions.
 - [Security Architecture (docs/security.md)](docs/security.md): Zero-secrets policy, auth roadmap, citizen privacy, rate limiting, media upload security, audit logging.
 
@@ -109,6 +109,7 @@ Detailed technical specifications and design conventions are located in `docs/`:
 nagrivic/
 ├── NagrivicApp/         # Mobile application (React Native + Expo + TypeScript)
 ├── backend/             # Central backend REST API (Java 23 + Spring Boot Modular Monolith)
+│   └── src/main/resources/db/migration/ # Flyway migrations (V1__enable_postgis.sql)
 ├── web/                 # Next.js web portals (public website & admin dashboard)
 ├── docs/                # Architecture diagrams, API/DB standards, security principles
 │   ├── architecture.md
@@ -116,6 +117,8 @@ nagrivic/
 │   ├── database-conventions.md
 │   ├── coding-standards.md
 │   └── security.md
+├── docker-compose.yml   # Local development PostgreSQL 16 + PostGIS 3.4 database
+├── .env.example         # Environment variables template
 ├── .gitignore           # Unified monorepo gitignore
 └── README.md            # Root documentation
 ```
@@ -131,11 +134,37 @@ Ensure you have the following installed on your development machine:
 1. **Java JDK**: Version 21 or 23 (JDK 23.0.1 verified).
 2. **Node.js & npm**: Node.js v20+ (Node v24.14.0 and npm 11.19.1 verified).
 3. **Expo Go / Android Studio / Xcode**: For mobile preview.
-4. **PostgreSQL 15+ with PostGIS 3.3+**: For future database connection (configured via environment variables).
+4. **Docker & Docker Compose**: For running the local PostgreSQL + PostGIS database container.
 
 ---
 
-## 9. How to Run the Mobile Application
+## 9. How to Run the Local Database (Docker Compose)
+
+The local development database uses the official `postgis/postgis:16-3.4` container.
+
+1. Start the database in detached mode:
+   ```bash
+   docker compose up -d
+   ```
+
+2. Verify that the database container is running and healthy:
+   ```bash
+   docker compose ps
+   ```
+
+3. Connect to the database using `psql`:
+   ```bash
+   docker compose exec -it db psql -U nagrivic -d nagrivic
+   ```
+
+4. Stop the database:
+   ```bash
+   docker compose down
+   ```
+
+---
+
+## 10. How to Run the Mobile Application
 
 1. Navigate to the mobile application directory:
    ```bash
@@ -159,7 +188,7 @@ Ensure you have the following installed on your development machine:
 
 ---
 
-## 10. How to Run the Backend
+## 11. How to Run the Backend
 
 1. Navigate to the backend directory:
    ```bash
@@ -193,21 +222,22 @@ Ensure you have the following installed on your development machine:
    ```json
    {
      "status": "UP",
-     "service": "nagrivic-backend"
+     "service": "nagrivic-backend",
+     "database": "UP"
    }
    ```
 
 ---
 
-## 11. Development Roadmap & Current Status
+## 12. Development Roadmap & Current Status
 
 - **Phase 1: Project Foundation** - **COMPLETED**
   - Unified monorepo structure, modular monolith backend skeleton, basic `/api/health` endpoint, documentation, Expo web preview.
-- **Phase 2: Architecture & Coding Standards** - **COMPLETED (Current)**
+- **Phase 2: Architecture & Coding Standards** - **COMPLETED**
   - Comprehensive architectural specifications, layer responsibilities, REST API contracts, PostGIS database conventions, TypeScript & Java coding standards, security principles, and 14 development principles.
-- **Phase 3: Spatial Database & PostGIS Setup** - *Next*
-  - PostgreSQL + PostGIS schemas, spatial indexes, ward boundary polygons for Ahmedabad pilot ward.
-- **Phase 4: Authentication & Core Identity** - *Upcoming*
+- **Phase 3: Database Foundation & PostGIS Setup** - **COMPLETED (Current)**
+  - PostgreSQL 16 + PostGIS 3.4 Docker Compose configuration, Flyway migration framework, `V1__enable_postgis.sql`, Spring Data JPA setup, safe database health check. Zero business tables created.
+- **Phase 4: Authentication & Core Identity** - *Next*
   - Citizen mobile OTP authentication, authority roles, JWT security.
 - **Phase 5: Issue Reporting & Media Pipeline** - *Upcoming*
   - Geotagged camera capture, S3 pre-signed uploads, issue state machine, duplicate proximity query (`ST_DWithin`).
