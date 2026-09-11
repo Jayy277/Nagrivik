@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.nagrivic.modules.categories.entity.CategoryEntity;
 import org.nagrivic.modules.categories.repository.CategoryRepository;
 import org.nagrivic.modules.categories.service.CategoryService;
+import org.nagrivic.modules.issues.repository.IssueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,10 +22,14 @@ class CategoryDomainTest {
     private CategoryRepository categoryRepository;
 
     @Autowired
+    private IssueRepository issueRepository;
+
+    @Autowired
     private CategoryService categoryService;
 
     @BeforeEach
     void setUp() {
+        issueRepository.deleteAll();
         categoryRepository.deleteAll();
     }
 

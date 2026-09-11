@@ -22,10 +22,14 @@ class LocationDomainTest {
     private LocationRepository locationRepository;
 
     @Autowired
+    private org.nagrivic.modules.issues.repository.IssueRepository issueRepository;
+
+    @Autowired
     private LocationService locationService;
 
     @BeforeEach
     void setUp() {
+        issueRepository.deleteAll();
         locationRepository.deleteAll();
     }
 

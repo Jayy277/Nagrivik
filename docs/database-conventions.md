@@ -155,3 +155,13 @@ updated_by UUID NULL REFERENCES users(id)
   deleted_at TIMESTAMPTZ NULL
   ```
 - High-frequency citizen engagement tables (e.g., `supports`) use hard deletion (`DELETE FROM supports WHERE ...`) to keep tables lean and indexes small.
+
+---
+
+## 8. Binary Data & Media Storage Policy
+
+- **No Binary Storage in PostgreSQL**: PostgreSQL must **never** store raw image bytes, video files, or BLOBs. Storing large binary objects degrades database caching, balloons WAL size, and slows backup/restore cycles.
+- **Metadata in PostgreSQL**: The `media` table stores only lightweight file metadata (`storage_key`, `content_type`, `file_size_bytes`, `media_type`, `display_order`, `created_at`).
+- **Object Storage for Assets**: Actual binary assets reside in private, S3-compatible object storage (e.g., Cloudflare R2, MinIO, or AWS S3).
+- **Server-Controlled Storage Keys**: The `storage_key` is generated server-side using UUIDs and parent entity identifiers (`issues/{issueId}/{uuid}.jpg`). Clients are never permitted to supply or manipulate storage paths.
+- **Privacy Boundary**: Media metadata records must not store unnecessary personally identifiable information (PII), residential addresses, or raw client EXIF GPS payloads.

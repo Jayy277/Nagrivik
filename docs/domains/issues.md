@@ -51,7 +51,17 @@ Every civic issue is anchored to an authoritative geographic point:
 
 ---
 
-## 6. Status Representation
+## 6. Relationship with Media Domain
+
+An Issue can have multiple associated visual evidence attachments (photographs):
+- **Foreign Key**: `media.issue_id -> issues.id`
+- **Referential Integrity**: `ON DELETE CASCADE` is enforced. If an issue is deleted, its associated media metadata records are purged automatically to prevent orphaned metadata.
+- **Ordered Galleries**: Display order (`display_order ASC`) enables consistent presentation of multiple issue photos.
+- **Binary Separation**: Binary file data resides in object storage; only file metadata is stored in PostgreSQL.
+
+---
+
+## 7. Status Representation
 
 The initial issue lifecycle representation uses stable, machine-friendly enum values:
 
@@ -64,7 +74,7 @@ The initial issue lifecycle representation uses stable, machine-friendly enum va
 
 ---
 
-## 7. Database Indexes & Constraints
+## 8. Database Indexes & Constraints
 
 - **Foreign Key Constraints**:
   - `fk_issues_reported_by` referencing `users(id)` with `ON DELETE RESTRICT`.
@@ -80,11 +90,10 @@ The initial issue lifecycle representation uses stable, machine-friendly enum va
 
 ---
 
-## 8. Explicitly Excluded Future Domains
+## 9. Explicitly Excluded Future Domains
 
 To keep the architecture clean and modular, the following capabilities are **intentionally excluded** and will be designed in their respective dedicated tasks:
 
-- **Media**: Evidence attachments, photos, videos, and S3 pre-signed URLs belong to the Media domain (`issue_media`).
 - **Supports**: Community upvoting and endorsement counts belong to the Support domain.
 - **Comments**: Citizen and official discussion threads belong to the Comments domain.
 - **Status History**: State-transition audit trails and SLA tracking belong to the Status History domain.
