@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production / Build outputs
+dist/
+build/
+out/
+target/
+web-build/
+*.class
+*.jar
+*.war
+*.ear
+
+# Expo / React Native
+.expo/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+*.tsbuildinfo
+
+# Java / Gradle / Maven
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.pem
+
+# IDE / Editor files
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Local Environment Variables & Secrets
+.env
+.env*.local
+*.secret
+credentials.json
