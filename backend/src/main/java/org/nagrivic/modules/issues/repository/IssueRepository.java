@@ -11,5 +11,6 @@ import java.util.UUID;
 @Repository
 public interface IssueRepository extends JpaRepository<IssueEntity, UUID> {
     List<IssueEntity> findByReporter_Id(UUID reporterId);
+    List<IssueEntity> findByCategory_Id(UUID categoryId);
     List<IssueEntity> findByStatus(IssueStatus status);
 }

@@ -1,5 +1,7 @@
 package org.nagrivic.modules.issues.service;
 
+import org.nagrivic.modules.categories.entity.CategoryEntity;
+import org.nagrivic.modules.categories.repository.CategoryRepository;
 import org.nagrivic.modules.issues.entity.IssueEntity;
 import org.nagrivic.modules.issues.model.IssueStatus;
 import org.nagrivic.modules.issues.repository.IssueRepository;
@@ -18,21 +20,34 @@ public class IssueService {
 
     private final IssueRepository issueRepository;
     private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
 
-    public IssueService(IssueRepository issueRepository, UserRepository userRepository) {
+    public IssueService(
+            IssueRepository issueRepository,
+            UserRepository userRepository,
+            CategoryRepository categoryRepository
+    ) {
         this.issueRepository = issueRepository;
         this.userRepository = userRepository;
+        this.categoryRepository = categoryRepository;
     }
 
     @Transactional
-    public IssueEntity createIssue(UUID reportedBy, String title, String description) {
+    public IssueEntity createIssue(UUID reportedBy, UUID categoryId, String title, String description) {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("Issue title cannot be blank");
         }
         UserEntity reporter = userRepository.findById(reportedBy)
                 .orElseThrow(() -> new IllegalArgumentException("Reporter user not found: " + reportedBy));
 
-        IssueEntity issue = new IssueEntity(reporter, title.trim(), description);
+        CategoryEntity category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("Category not found: " + categoryId));
+
+        if (!category.isActive()) {
+            throw new IllegalArgumentException("Cannot report an issue under an inactive category: " + category.getName());
+        }
+
+        IssueEntity issue = new IssueEntity(reporter, category, title.trim(), description);
         return issueRepository.save(issue);
     }
 
@@ -42,6 +57,10 @@ public class IssueService {
 
     public List<IssueEntity> findByReportedBy(UUID reportedBy) {
         return issueRepository.findByReporter_Id(reportedBy);
+    }
+
+    public List<IssueEntity> findByCategory(UUID categoryId) {
+        return issueRepository.findByCategory_Id(categoryId);
     }
 
     public List<IssueEntity> findByStatus(IssueStatus status) {
