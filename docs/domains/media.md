@@ -86,32 +86,89 @@ CREATE INDEX idx_media_issue_display_order ON media(issue_id, display_order ASC)
 
 ---
 
-## 6. Security Principles (For Future Upload Service)
+---
 
-When file uploading is implemented in a future task, the upload pipeline must adhere to the following mandatory security rules:
-1. **Magic Bytes Validation**: Do not trust the client-supplied `Content-Type` header or file extension. Verify real file signatures (magic bytes) for JPEG, PNG, and WebP.
-2. **Enforce Size Limits**: Strict byte size limits (e.g., max 10MB per image) enforced prior to streaming.
-3. **Prevent Executable Uploads**: Only allow safe raster image formats. Disallow SVG, HTML, scripts, or executables.
-4. **Private Storage by Default**: Media bucket must be private with no public write access. Reads must be controlled via CDN or short-lived pre-signed URLs.
+## 6. Photo Upload API Foundation (Task 12)
+
+### 6.1 Upload Endpoint & Contract
+Nagrivic provides an authenticated REST endpoint for attaching photographic evidence:
+
+```http
+POST /api/issues/{issueId}/media
+Content-Type: multipart/form-data
+Authorization: Bearer <jwt-token>
+
+[Part: file (binary)]
+```
+
+- **Authentication**: Mandatory via Bearer JWT. Unauthenticated requests return `401 Unauthorized`.
+- **Media Type**: `IMAGE` only.
+- **Multipart Field**: `file`.
+- **Response**: `201 Created` with `MediaResponse` metadata.
+
+### 6.2 Ownership & Access Control Model
+- **Issue Reporter Source of Truth**: The authenticated user from the JWT is compared against `issue.reporter`.
+- **Enforcement**:
+  - Only the authenticated issue creator can attach media to their issue.
+  - If another authenticated user attempts to upload media to an issue they do not own: `403 Forbidden` (`FORBIDDEN`).
+  - If an inactive user attempts upload: `403 Forbidden`.
+  - If the target issue does not exist: `404 Not Found` (`NOT_FOUND`).
+  - No client-supplied uploader ID, user ID, storage key, or media type is trusted.
+
+### 6.3 Server-Side File Validation
+1. **Empty File Prevention**: Rejects empty files or 0-byte uploads.
+2. **File Size Enforcement**: Configurable via `nagrivic.media.max-file-size-mb` (default: 10 MB). Oversized uploads are rejected immediately (`400 Bad Request` or `FILE_TOO_LARGE`).
+3. **MIME & Extension Whitelisting**: Supported formats are strictly restricted to JPEG (`image/jpeg`, `.jpg`, `.jpeg`), PNG (`image/png`, `.png`), and WebP (`image/webp`, `.webp`).
+4. **Magic Bytes / File Signature Verification**:
+   - JPEG: verified prefix `FF D8 FF`.
+   - PNG: verified prefix `89 50 4E 47 0D 0A 1A 0A`.
+   - WebP: verified RIFF/WEBP structure (`52 49 46 46` ... `57 42 45 50`).
+   - Disguised scripts, executables, PDFs, or corrupted files with spoofed headers are rejected with `400 Bad Request`.
+
+### 6.4 Storage Abstraction & Path Traversal Defense
+- **Storage Interface (`MediaStorageService`)**: Defines `store`, `delete`, and `exists` primitives, decoupling domain code from underlying infrastructure.
+- **Local Implementation (`LocalMediaStorageService`)**: Used for local and test environments.
+- **Path Traversal Protection**: Storage keys are generated strictly on the server: `issues/{issueId}/{uuid}.{ext}`. Path traversal sequences (`..`, `\`) are prevented and validated against the storage root.
+- **Consistency**: Storage writes occur first; if PostgreSQL metadata persistence fails, compensation logic purges the stored binary.
+
+### 6.5 Display Ordering
+- Display ordering is zero-indexed and server-managed: first photo receives `0`, second photo receives `1`, etc., based on `countByIssue_Id(issueId)`.
+- Client cannot dictate `displayOrder`.
+
+### 6.6 Response Hygiene
+The API returns only safe metadata:
+```json
+{
+  "id": "c1f7a08b-...",
+  "issueId": "a9d0337f-...",
+  "mediaType": "IMAGE",
+  "contentType": "image/jpeg",
+  "fileSizeBytes": 2048576,
+  "displayOrder": 0,
+  "createdAt": "2026-09-11T16:00:00Z"
+}
+```
+Internal storage keys, filesystem paths, raw bytes, and server secrets are never exposed.
 
 ---
 
-## 7. Privacy Considerations
+## 7. Privacy & EXIF Considerations
 
 Citizen-uploaded photos of public spaces may unintentionally capture sensitive personal details:
 - **People's Faces**: Incidental pedestrians.
 - **Vehicle License Plates**: Private vehicles parked or driving near civic problems.
 - **Personal Documents**: Mail, notices, or residential house numbers.
-- **Stripping EXIF Metadata**: Future upload pipelines must strip EXIF metadata (especially embedded GPS coordinates and device identifiers). The authoritative location of the issue is managed by the **Location Domain** (`issues.location_id`), not untrusted client EXIF tags.
+- **Stripping EXIF Metadata**: Future processing pipelines will strip EXIF metadata (especially embedded GPS coordinates and device identifiers). The authoritative location of the issue is managed by the **Location Domain** (`issues.location_id`), not untrusted client EXIF tags.
 
 ---
 
-## 8. Deferred Features (Strict Boundaries)
+## 8. Deferred Features (Future Scope)
 
-The following features are intentionally out of scope for Task 8 and deferred to future tasks:
-- S3 / MinIO / Cloudflare R2 SDK integrations
-- Multipart upload and file streaming APIs (`POST /api/issues/{id}/media`)
-- Pre-signed upload and download URLs
+The following features remain deferred to future tasks:
+- Cloud object storage providers (AWS S3, Cloudflare R2, MinIO)
+- Pre-signed read/download URLs (`GET /api/media/...`)
 - Image compression, thumbnail generation, and resizing
-- Mobile camera and gallery pickers
+- Mobile camera and gallery pickers (Task 13+)
 - AI image moderation or automated blurring
+- Video / audio / PDF document support
+

@@ -1,7 +1,6 @@
 package org.nagrivic.modules.categories.dto;
 
 import org.nagrivic.modules.categories.entity.CategoryEntity;
-
 import java.util.UUID;
 
 public record CategoryResponse(
@@ -9,7 +8,6 @@ public record CategoryResponse(
     String name,
     String slug,
     String description,
-    boolean isActive,
     int displayOrder
 ) {
     public static CategoryResponse fromEntity(CategoryEntity entity) {
@@ -18,7 +16,6 @@ public record CategoryResponse(
             entity.getName(),
             entity.getSlug(),
             entity.getDescription(),
-            entity.isActive(),
             entity.getDisplayOrder()
         );
     }

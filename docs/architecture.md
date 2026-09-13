@@ -55,7 +55,7 @@ Nagrivic is architected around the core principle of **one central backend and o
 ### Central Backend (`backend/`)
 - **Single Spring Boot Deployment**: Modular monolith running Java 23 and Spring Boot.
 - **Business Logic**: Enforcement of domain rules, state machines, and workflows.
-- **Authentication & Authorization**: Citizen OTP verification, authority role-based access control (RBAC), JWT sessions.
+- **Authentication & Authorization**: Google Sign-In as primary citizen authentication (cryptographic ID token verification via Google API client, multi-client ID allowlist, `user_auth_identities` provider mapping, auto-provisioning `CITIZEN` role), phone OTP retained for test/secondary flows, authority role-based access control (RBAC), stateless JWT access tokens and rotating SHA-256 hashed refresh token sessions.
 - **Issue Lifecycle**: State transitions (Submitted → Verified → In-Progress → Resolved → Citizen-Confirmed).
 - **User Management**: Profile data, officer assignments, reputation scores.
 - **Geographic Mapping & Spatial Queries**: Coordinates, ward polygons, and spatial distance checks.

@@ -5,7 +5,30 @@ spring:
     username: sa
     password: ""
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: create-drop
   flyway:
     enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+nagrivic:
+  auth:
+    otp:
+      provider: DEV
+      expiration-minutes: 5
+      cooldown-seconds: 1
+      max-attempts: 5
+    jwt:
+      secret: nagrivic-test-secret-key-that-is-at-least-256-bits-long-for-testing-purposes
+      access-token-expiration-minutes: 15
+      refresh-token-expiration-days: 30
+  media:
+    max-file-size-mb: 10
+    local-storage-dir: build/test-uploads
+  duplicates:
+    detection-radius-meters: 100.0
+    max-citizen-candidates: 5
+

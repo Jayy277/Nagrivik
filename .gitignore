@@ -6,9 +6,11 @@ node_modules/
 # Production / Build outputs
 dist/
 build/
+uploads/
 out/
 target/
 web-build/
+.next/
 *.class
 *.jar
 *.war

@@ -8,8 +8,8 @@ import java.util.UUID;
 
 /**
  * Request payload for reporting a new civic issue.
- * Notice: 'reportedBy' is a temporary development-only identifier that will be replaced
- * by authenticated user identity once authentication is implemented.
+ * The reporter identity is derived server-side exclusively from the authenticated JWT.
+ * Location can be supplied either via an existing locationId or via inline location coordinates.
  */
 public record CreateIssueRequest(
     @NotBlank(message = "Title is required and must not be blank")
@@ -22,9 +22,21 @@ public record CreateIssueRequest(
     @NotNull(message = "Category ID is required")
     UUID categoryId,
 
-    @NotNull(message = "Location ID is required")
     UUID locationId,
 
-    @NotNull(message = "Reporter ID is required (temporary development-only identifier)")
-    UUID reportedBy
-) {}
+    org.nagrivic.modules.priority.model.IssueSeverity severity,
+
+    LocationPayload location
+) {
+    public CreateIssueRequest(String title, String description, UUID categoryId, UUID locationId) {
+        this(title, description, categoryId, locationId, null, null);
+    }
+
+    public CreateIssueRequest(String title, String description, UUID categoryId, UUID locationId, org.nagrivic.modules.priority.model.IssueSeverity severity) {
+        this(title, description, categoryId, locationId, severity, null);
+    }
+
+    public CreateIssueRequest(String title, String description, UUID categoryId, LocationPayload location) {
+        this(title, description, categoryId, null, null, location);
+    }
+}

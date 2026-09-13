@@ -25,7 +25,7 @@
 
 | Method | Endpoint | Status | Description |
 |---|---|---|---|
-| `POST` | `/api/issues` | **Implemented** | Report a new civic issue (`title`, `description`, `categoryId`, `locationId`, `reportedBy`) |
+| `POST` | `/api/issues` | **Implemented** | Report a new civic issue (`title`, `description`, `categoryId`, `locationId`; reporter server-derived from authenticated JWT) |
 | `GET` | `/api/issues/{id}` | **Implemented** | Get detailed information for a single issue |
 | `GET` | `/api/issues` | **Implemented** | List issues with pagination (`page`, `size`), sorting (`createdAt DESC`), and filters (`status`, `categoryId`, `reportedBy`) |
 | `GET` | `/api/health` | **Implemented** | Service health status (`UP`, `nagrivic-backend`) |
@@ -133,13 +133,18 @@ Collections accept standard URL query parameters:
 | `category` | string | - | `category=ROADS_POTHOLES` | Filter by category key. |
 | `wardId` | string | - | `wardId=amc-ward-12` | Filter by municipal ward identifier. |
 
-### Spatial Query Parameters (`/api/issues/nearby`)
+### Geographic & Map Query Parameters (`GET /api/issues`)
+
+For interactive civic map exploration and nearby discovery:
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `lat` | float (WGS84) | Yes | Latitude (-90 to +90). |
-| `lng` | float (WGS84) | Yes | Longitude (-180 to +180). |
-| `radius` | integer (meters) | No (default: `500`) | Proximity radius in meters (max `5000`). |
+| `latitude` | double (WGS84) | Conditional | Target center latitude (-90.0 to +90.0). Required if `longitude` is supplied. |
+| `longitude` | double (WGS84) | Conditional | Target center longitude (-180.0 to +180.0). Required if `latitude` is supplied. |
+| `radiusMeters` | double (meters) | No (default: `50000`) | Proximity radius in meters (1 to `50000` / 50km max). |
+| `sort` | enum | No | Supports `NEAREST` (orders ascending by physical distance), `NEWEST`, `PRIORITY`, `MOST_SUPPORTED`. |
+
+*Note: For complete map architecture, tile configurations, and clustering, see [docs/map.md](file:///j:/Nagrivic/docs/map.md).*
 
 ---
 
