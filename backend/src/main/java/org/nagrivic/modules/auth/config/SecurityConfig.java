@@ -68,6 +68,16 @@ public class SecurityConfig {
                         // Public read-only issue viewing and categories
                         .requestMatchers(HttpMethod.GET, "/api/issues", "/api/issues/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/media", "/api/media/**").permitAll()
+                        // Citizen reporting of content
+                        .requestMatchers(HttpMethod.POST, "/api/moderation/reports").authenticated()
+                        // Civic geography & responsibility configuration requires ADMIN only
+                        .requestMatchers("/api/admin/geography/**").hasRole("ADMIN")
+                        // Privileged moderation & admin operations require MODERATOR, ADMIN, or legacy OFFICER
+                        .requestMatchers("/api/moderation/**", "/api/admin/**").hasAnyRole("MODERATOR", "ADMIN", "OFFICER")
+                        // Authority operational issue management requires OFFICER or ADMIN
+                        .requestMatchers("/api/authority/**").hasAnyRole("OFFICER", "ADMIN")
                         // POST /api/issues and all other endpoints require authentication
                         .anyRequest().authenticated()
                 )

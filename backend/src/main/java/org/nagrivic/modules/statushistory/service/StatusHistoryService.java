@@ -33,6 +33,8 @@ public class StatusHistoryService {
     private final org.nagrivic.modules.priority.service.IssuePriorityService issuePriorityService;
     private final org.nagrivic.modules.activity.service.IssueActivityService issueActivityService;
     private final org.nagrivic.modules.notifications.service.NotificationService notificationService;
+    private final org.nagrivic.modules.authorities.repository.AuthorityAssignmentRepository authorityAssignmentRepository;
+    private final org.nagrivic.modules.authorities.service.AuthorityScopeService authorityScopeService;
 
     public StatusHistoryService(
             StatusHistoryRepository statusHistoryRepository,
@@ -41,7 +43,9 @@ public class StatusHistoryService {
             CurrentUserService currentUserService,
             @Lazy org.nagrivic.modules.priority.service.IssuePriorityService issuePriorityService,
             org.nagrivic.modules.activity.service.IssueActivityService issueActivityService,
-            @Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService
+            @Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService,
+            @Lazy org.nagrivic.modules.authorities.repository.AuthorityAssignmentRepository authorityAssignmentRepository,
+            @Lazy org.nagrivic.modules.authorities.service.AuthorityScopeService authorityScopeService
     ) {
         this.statusHistoryRepository = statusHistoryRepository;
         this.issueRepository = issueRepository;
@@ -50,6 +54,8 @@ public class StatusHistoryService {
         this.issuePriorityService = issuePriorityService;
         this.issueActivityService = issueActivityService;
         this.notificationService = notificationService;
+        this.authorityAssignmentRepository = authorityAssignmentRepository;
+        this.authorityScopeService = authorityScopeService;
     }
 
     /**
@@ -81,13 +87,35 @@ public class StatusHistoryService {
         IssueEntity issue = issueRepository.findById(issueId)
                 .orElseThrow(() -> new ResourceNotFoundException("Issue", issueId));
 
+        // Optimistic locking check
+        if (request.version() != null && !request.version().equals(issue.getVersion())) {
+            throw new org.nagrivic.common.error.ConflictException("Issue has been modified by another authority user. Please refresh and try again.");
+        }
+
+        // Validate authority scope if active assignments exist for officer or when scoped
+        List<org.nagrivic.modules.authorities.entity.AuthorityAssignmentEntity> assignments =
+                authorityAssignmentRepository.findByUser_IdAndActiveTrue(currentUser.getId());
+        if (!assignments.isEmpty() || ("OFFICER".equalsIgnoreCase(role) && authorityAssignmentRepository.count() > 0)) {
+            authorityScopeService.validateAuthorityScope(currentUser, issue);
+        }
+
         IssueStatus currentStatus = issue.getStatus();
         IssueStatus targetStatus = request.status();
 
-        if (currentStatus == targetStatus || !currentStatus.canTransitionTo(targetStatus)) {
+        if (currentStatus == targetStatus) {
+            throw new org.nagrivic.common.error.ConflictException("Issue is already in status " + targetStatus);
+        }
+
+        if (!currentStatus.canTransitionTo(targetStatus)) {
             throw new IllegalArgumentException(
                     "Invalid status transition: cannot transition issue from " + currentStatus + " to " + targetStatus
             );
+        }
+
+        if (targetStatus == IssueStatus.RESOLVED) {
+            if (request.reason() == null || request.reason().trim().isEmpty()) {
+                throw new IllegalArgumentException("A reason is mandatory when marking an issue as RESOLVED");
+            }
         }
 
         if (targetStatus == IssueStatus.NOT_FIXED) {

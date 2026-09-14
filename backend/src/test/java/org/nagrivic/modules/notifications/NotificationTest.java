@@ -271,7 +271,7 @@ class NotificationTest {
         // Officer transitions: VERIFIED -> ACKNOWLEDGED -> IN_PROGRESS -> RESOLVED
         statusHistoryService.changeStatus(issue.getId(), new ChangeStatusRequest(IssueStatus.ACKNOWLEDGED, null));
         statusHistoryService.changeStatus(issue.getId(), new ChangeStatusRequest(IssueStatus.IN_PROGRESS, null));
-        statusHistoryService.changeStatus(issue.getId(), new ChangeStatusRequest(IssueStatus.RESOLVED, null));
+        statusHistoryService.changeStatus(issue.getId(), new ChangeStatusRequest(IssueStatus.RESOLVED, "Issue has been resolved"));
 
         // J. Resolution creates ISSUE_RESOLVED notification
         List<NotificationEntity> c1ResolvedNotifs = notificationRepository.findByUser_IdOrderByCreatedAtDesc(citizen1.getId(), null).getContent();

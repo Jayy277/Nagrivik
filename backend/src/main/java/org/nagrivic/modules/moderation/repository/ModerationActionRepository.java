@@ -25,4 +25,7 @@ public interface ModerationActionRepository extends JpaRepository<ModerationActi
             UUID moderatorId,
             Pageable pageable
     );
+
+    @EntityGraph(attributePaths = {"moderator", "report"})
+    java.util.List<ModerationActionEntity> findByReport_IdOrderByCreatedAtDesc(UUID reportId);
 }

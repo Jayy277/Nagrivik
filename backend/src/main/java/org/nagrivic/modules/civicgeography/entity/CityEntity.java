@@ -31,6 +31,15 @@ public class CityEntity {
     @OnDelete(action = OnDeleteAction.SET_NULL)
     private CivicBodyEntity civicBody;
 
+    @Column(name = "source", length = 255)
+    private String source;
+
+    @Column(name = "source_url", length = 500)
+    private String sourceUrl;
+
+    @Column(name = "last_verified_at")
+    private Instant lastVerifiedAt;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -39,6 +48,10 @@ public class CityEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     public CityEntity() {
     }
@@ -135,5 +148,37 @@ public class CityEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
+    }
+
+    public Instant getLastVerifiedAt() {
+        return lastVerifiedAt;
+    }
+
+    public void setLastVerifiedAt(Instant lastVerifiedAt) {
+        this.lastVerifiedAt = lastVerifiedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

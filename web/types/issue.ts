@@ -124,7 +124,24 @@ export type IssueActivityType =
   | 'RESPONSIBILITY_RESOLVED'
   | 'RESPONSIBILITY_RE_RESOLVED'
   | 'PRIORITY_RECALCULATED'
-  | 'MEDIA_ADDED';
+  | 'MEDIA_ADDED'
+  | 'RESOLUTION_EVIDENCE_ADDED';
+
+export type ResolutionEvidenceType = 'COMPLETION_PHOTO' | 'COMPLETION_NOTE' | 'BEFORE_AFTER_PHOTO';
+
+export interface ResolutionEvidenceResponse {
+  id: string;
+  issueId: string;
+  evidenceType: ResolutionEvidenceType;
+  mediaUrl?: string | null;
+  originalFilename?: string | null;
+  fileSizeBytes?: number | null;
+  note?: string | null;
+  capturedAt?: string | null;
+  createdAt: string;
+  submittedByRole: string;
+  submittedByName: string;
+}
 
 export interface ActivityResponse {
   id: string;
@@ -147,3 +164,4 @@ export interface StatusHistoryResponse {
   issueId: string;
   history: StatusHistoryItemDto[];
 }
+

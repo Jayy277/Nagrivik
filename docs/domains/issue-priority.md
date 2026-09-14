@@ -134,3 +134,16 @@ Whenever an issue is returned (`GET /api/issues/{id}`, `GET /api/issues`, `POST 
 
 Query parameter: `GET /api/issues?priority=HIGH` (or `LOW`, `MEDIUM`, `CRITICAL`).
 The backend joins `issue.priority` and applies the filter at the database level with zero N+1 overhead.
+
+---
+
+## 7. AI Priority Assistance (Task 48)
+
+To assist municipal authorities during operational triage, Task 48 introduces an AI advisory recommendation layer.
+- **Authoritative Foundation**: The deterministic formula above remains authoritative.
+- **Default Mode (`ADVISORY`)**: AI recommendations are displayed in authority dashboards without altering deterministic scores.
+- **Optional `BLENDED` Mode**: Provides bounded adjustments capped strictly at max $\pm 10$ points overall ($\pm 5$ severity, $\pm 4$ impact, $\pm 4$ safety). Age and support are **never** altered by AI.
+- **Anti-CRITICAL Safeguard**: AI alone can never escalate an issue into `CRITICAL` (score $\ge 75$). A baseline below 75 is strictly capped at 74 (`HIGH` maximum).
+
+For complete technical specifications, mathematical blending formulas, and zero-PII safeguards, refer to [AI Priority Assistance](file:///j:/Nagrivic/docs/domains/ai-priority.md).
+

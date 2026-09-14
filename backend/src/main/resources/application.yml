@@ -65,6 +65,18 @@ nagrivic:
   media:
     max-file-size-mb: ${MEDIA_MAX_FILE_SIZE_MB:10}
     local-storage-dir: ${MEDIA_LOCAL_STORAGE_DIR:build/uploads}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    local:
+      directory: ${STORAGE_LOCAL_DIR:${MEDIA_LOCAL_STORAGE_DIR:build/uploads}}
+    s3:
+      endpoint: ${STORAGE_S3_ENDPOINT:}
+      region: ${STORAGE_S3_REGION:us-east-1}
+      bucket: ${STORAGE_S3_BUCKET:nagrivic-media}
+      access-key: ${STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${STORAGE_S3_SECRET_KEY:}
+      path-style-access: ${STORAGE_S3_PATH_STYLE_ACCESS:false}
+      connection-timeout-ms: ${STORAGE_S3_CONNECTION_TIMEOUT_MS:10000}
   duplicates:
     detection-radius-meters: ${DUPLICATE_DETECTION_RADIUS_METERS:100.0}
     max-citizen-candidates: ${DUPLICATE_MAX_CITIZEN_CANDIDATES:5}
@@ -76,4 +88,37 @@ nagrivic:
       support-per-minute: ${RATE_LIMIT_SUPPORT_PER_MINUTE:20}
       otp-per-minute: ${RATE_LIMIT_OTP_PER_MINUTE:3}
       google-auth-per-minute: ${RATE_LIMIT_GOOGLE_AUTH_PER_MINUTE:10}
+  ai:
+    duplicates:
+      enabled: ${AI_DUPLICATE_ENABLED:false}
+      provider: ${AI_DUPLICATE_PROVIDER:LOCAL_SEMANTIC}
+      model: ${AI_DUPLICATE_MODEL:heuristic-text-v1}
+      score-version: ${AI_DUPLICATE_SCORE_VERSION:duplicate-v1}
+      timeout-ms: ${AI_DUPLICATE_TIMEOUT_MS:3000}
+      threshold: ${AI_DUPLICATE_THRESHOLD:70}
+    image:
+      enabled: ${AI_IMAGE_ENABLED:false}
+      provider: ${AI_IMAGE_PROVIDER:LOCAL_HEURISTIC}
+      model: ${AI_IMAGE_MODEL:heuristic-vision-v1}
+      model-version: ${AI_IMAGE_MODEL_VERSION:1.0.0}
+      calculation-version: ${AI_IMAGE_CALCULATION_VERSION:image-understanding-v1}
+      timeout-ms: ${AI_IMAGE_TIMEOUT_MS:5000}
+    priority:
+      enabled: ${AI_PRIORITY_ENABLED:false}
+      provider: ${AI_PRIORITY_PROVIDER:LOCAL_HEURISTIC}
+      model: ${AI_PRIORITY_MODEL:heuristic-priority-v1}
+      model-version: ${AI_PRIORITY_MODEL_VERSION:1.0.0}
+      calculation-version: ${AI_PRIORITY_CALCULATION_VERSION:priority-assistance-v1}
+      timeout-ms: ${AI_PRIORITY_TIMEOUT_MS:4000}
+      confidence-threshold: ${AI_PRIORITY_CONFIDENCE_THRESHOLD:70}
+      influence-mode: ${AI_PRIORITY_INFLUENCE_MODE:ADVISORY}
+  push:
+    fcm:
+      enabled: ${FCM_ENABLED:false}
+      project-id: ${FIREBASE_PROJECT_ID:}
+      client-email: ${FIREBASE_CLIENT_EMAIL:}
+      private-key: ${FIREBASE_PRIVATE_KEY:}
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+
+
 

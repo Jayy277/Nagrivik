@@ -28,7 +28,43 @@ nagrivic:
   media:
     max-file-size-mb: 10
     local-storage-dir: build/test-uploads
+  storage:
+    provider: local
+    local:
+      directory: build/test-uploads
+    s3:
+      bucket: nagrivic-test-media
+      region: us-east-1
   duplicates:
     detection-radius-meters: 100.0
     max-citizen-candidates: 5
+  ai:
+    duplicates:
+      enabled: false
+      provider: LOCAL_SEMANTIC
+      model: test-semantic-v1
+      score-version: duplicate-v1
+      timeout-ms: 3000
+      threshold: 70
+    image:
+      enabled: false
+      provider: LOCAL_HEURISTIC
+      model: test-vision-v1
+      model-version: 1.0.0
+      calculation-version: image-understanding-v1
+      timeout-ms: 5000
+    priority:
+      enabled: false
+      provider: LOCAL_HEURISTIC
+      model: test-priority-v1
+      model-version: 1.0.0
+      calculation-version: priority-assistance-v1
+      timeout-ms: 4000
+      confidence-threshold: 70
+      influence-mode: ADVISORY
+  push:
+    fcm:
+      enabled: false
+
+
 

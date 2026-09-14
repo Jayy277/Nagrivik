@@ -1,8 +1,9 @@
-import { apiRequest, getApiBaseUrl } from './client';
+import { apiRequest, getApiBaseUrl, RequestOptions } from './client';
 import {
   IssueResponse,
   CategorySummary,
   IssueDiscoveryFilterParams,
+  ResolutionEvidenceResponse,
 } from '../../types/issue';
 import { PagedResponse } from '../../types/api';
 
@@ -55,4 +56,11 @@ export function getIssueImageUrl(issueId: string, mediaId?: string): string | nu
   if (!mediaId) return null;
   const baseUrl = getApiBaseUrl();
   return `${baseUrl}/api/issues/${issueId}/media/${mediaId}`;
+}
+
+export async function getResolutionEvidence(
+  issueId: string,
+  options: RequestOptions = {}
+): Promise<ResolutionEvidenceResponse[]> {
+  return apiRequest<ResolutionEvidenceResponse[]>(`/issues/${issueId}/resolution-evidence`, options);
 }

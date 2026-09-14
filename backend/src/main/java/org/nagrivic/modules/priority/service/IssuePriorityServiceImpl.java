@@ -32,19 +32,22 @@ public class IssuePriorityServiceImpl implements IssuePriorityService {
     private final SupportRepository supportRepository;
     private final org.nagrivic.modules.activity.service.IssueActivityService issueActivityService;
     private final org.nagrivic.modules.notifications.service.NotificationService notificationService;
+    private final org.nagrivic.modules.priority.ai.service.PriorityAiService priorityAiService;
 
     public IssuePriorityServiceImpl(
             IssuePriorityRepository issuePriorityRepository,
             IssueRepository issueRepository,
             SupportRepository supportRepository,
             org.nagrivic.modules.activity.service.IssueActivityService issueActivityService,
-            @org.springframework.context.annotation.Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService
+            @org.springframework.context.annotation.Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService,
+            @org.springframework.context.annotation.Lazy org.nagrivic.modules.priority.ai.service.PriorityAiService priorityAiService
     ) {
         this.issuePriorityRepository = issuePriorityRepository;
         this.issueRepository = issueRepository;
         this.supportRepository = supportRepository;
         this.issueActivityService = issueActivityService;
         this.notificationService = notificationService;
+        this.priorityAiService = priorityAiService;
     }
 
     @Override
@@ -78,15 +81,30 @@ public class IssuePriorityServiceImpl implements IssuePriorityService {
         long supportCount = supportRepository.countByIssue_Id(canonical.getId());
         int supportScore = calculateSupportScore(supportCount);
 
-        // 3. Total Score (0-100)
-        int totalScore = severityScore + impactScore + safetyScore + ageScore + supportScore;
-        totalScore = Math.min(100, Math.max(0, totalScore));
+        // 3. Total Deterministic Baseline Score (0-100)
+        int deterministicScore = severityScore + impactScore + safetyScore + ageScore + supportScore;
+        deterministicScore = Math.min(100, Math.max(0, deterministicScore));
+
+        int finalScore = deterministicScore;
+        String calculationVersion = CALCULATION_VERSION;
+
+        // Optional server-side AI blended calculation policy (strict bounds, never forces CRITICAL)
+        if (priorityAiService != null && priorityAiService.isEnabled()
+                && priorityAiService.getInfluenceMode() == org.nagrivic.modules.priority.ai.model.PriorityInfluenceMode.BLENDED) {
+            Optional<org.nagrivic.modules.priority.ai.entity.IssueAiPriorityEntity> aiRecOpt = priorityAiService.getExistingRecommendation(canonical.getId());
+            if (aiRecOpt.isPresent()) {
+                finalScore = priorityAiService.calculateBlendedScore(deterministicScore, severityScore, impactScore, safetyScore, aiRecOpt.get());
+                if (finalScore != deterministicScore) {
+                    calculationVersion = "v1-ai-blended";
+                }
+            }
+        }
 
         // 4. Map to Priority Level
-        PriorityLevel level = mapScoreToLevel(totalScore);
+        PriorityLevel level = mapScoreToLevel(finalScore);
 
-        log.debug("Calculated priority for canonical issue {}: total={}, level={}, breakdown=[sev={}, imp={}, saf={}, age={}, sup={}]",
-                canonical.getId(), totalScore, level, severityScore, impactScore, safetyScore, ageScore, supportScore);
+        log.debug("Calculated priority for canonical issue {}: total={}, level={}, breakdown=[sev={}, imp={}, saf={}, age={}, sup={}], version={}",
+                canonical.getId(), finalScore, level, severityScore, impactScore, safetyScore, ageScore, supportScore, calculationVersion);
 
         // 5. Idempotent persistence
         Optional<IssuePriorityEntity> existingOpt = issuePriorityRepository.findByIssue_Id(canonical.getId());
@@ -96,15 +114,15 @@ public class IssuePriorityServiceImpl implements IssuePriorityService {
         boolean priorityChanged;
         if (existingOpt.isPresent()) {
             entity = existingOpt.get();
-            priorityChanged = !entity.getPriorityLevel().equals(level) || entity.getScore() != totalScore;
+            priorityChanged = !entity.getPriorityLevel().equals(level) || entity.getScore() != finalScore;
             entity.setPriorityLevel(level);
-            entity.setScore(totalScore);
+            entity.setScore(finalScore);
             entity.setSeverityScore(severityScore);
             entity.setImpactScore(impactScore);
             entity.setSafetyScore(safetyScore);
             entity.setAgeScore(ageScore);
             entity.setSupportScore(supportScore);
-            entity.setCalculationVersion(CALCULATION_VERSION);
+            entity.setCalculationVersion(calculationVersion);
             entity.setCalculatedAt(Instant.now());
             canonical.setPriority(entity);
         } else {
@@ -112,13 +130,13 @@ public class IssuePriorityServiceImpl implements IssuePriorityService {
             entity = new IssuePriorityEntity(
                     canonical,
                     level,
-                    totalScore,
+                    finalScore,
                     severityScore,
                     impactScore,
                     safetyScore,
                     ageScore,
                     supportScore,
-                    CALCULATION_VERSION
+                    calculationVersion
             );
             canonical.setPriority(entity);
         }
@@ -132,8 +150,8 @@ public class IssuePriorityServiceImpl implements IssuePriorityService {
                     null,
                     java.util.Map.of(
                             "level", level.name(),
-                            "score", totalScore,
-                            "calculationVersion", CALCULATION_VERSION
+                            "score", finalScore,
+                            "calculationVersion", calculationVersion
                     )
             );
         }

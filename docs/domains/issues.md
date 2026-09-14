@@ -72,7 +72,7 @@ An Issue can have multiple associated visual evidence attachments (photographs):
 
 ---
 
-## 7. Status Representation & State Lifecycle (Task 17)
+## 7. Status Representation & State Lifecycle (Task 17 & Task 37)
 
 The issue lifecycle uses stable, machine-friendly enum values with enforced state transitions:
 
@@ -81,8 +81,9 @@ The issue lifecycle uses stable, machine-friendly enum values with enforced stat
 - `ACKNOWLEDGED`: Recognized by municipal authorities or designated ward engineers.
 - `IN_PROGRESS`: Active repair or mitigation work underway on site.
 - `RESOLVED`: Field work completed and marked resolved by municipal authorities.
-- `CITIZEN_VERIFIED`: Confirmed as genuinely fixed by the original reporting citizen.
-- `NOT_FIXED`: Rejected by original reporting citizen during resolution verification, immediately reopening to `IN_PROGRESS`.
+- `CITIZEN_VERIFIED`: Confirmed as genuinely fixed by the original reporting citizen via Task 37 verification flow (`POST /api/issues/{id}/verify-resolution` with `fixed: true`).
+- `NOT_FIXED`: Reported as still unresolved by original reporting citizen during resolution verification (`fixed: false` with mandatory explanation reason of 1–1000 chars). Enables the issue to continue towards `IN_PROGRESS` remediation.
+- **Resolution Evidence Note**: Capture of resolution proof/photo evidence is deferred to Task 44.
 
 ---
 
@@ -159,13 +160,15 @@ Citizens and residents can discuss ongoing issues and provide ground updates:
 ### 13.1 Two-Stage Issue Creation Flow
 To avoid spamming municipal dashboards with redundant complaints when multiple citizens report the same hazard, Nagrivic supports a citizen-first duplicate detection workflow:
 1. **Stage 1: Pre-Creation Duplicate Check (`POST /api/issues/check-duplicates`)**:
-   - Client sends proposed issue coordinates (`locationId`) and `categoryId`.
-   - The backend runs a PostGIS proximity query (`ST_DWithin`, GiST index) within a configurable radius (default: 100 meters).
-   - If potential same-category candidates exist, up to 5 candidates are returned with accurate distance in meters and support counts.
+   - Client sends proposed issue coordinates (`locationId` or `latitude`/`longitude`), `categoryId`, `title`, and optional `description`.
+   - The backend queries candidate issues via PostGIS proximity (`ST_DWithin`, GiST index) within a configurable radius (default: 100 meters).
+   - If AI duplicate detection is enabled (`AI_DUPLICATE_ENABLED=true`), an advisory semantic similarity layer analyzes candidates against the new report, producing an AI score (0–100), confidence level (`LOW`, `POSSIBLE`, `LIKELY`, `HIGH`), and explainable signals. If disabled or on timeout, deterministic candidate records are returned with standard spatial distance.
+   - Up to 5 candidates are returned with distance, support counts, and advisory signals.
    - **Crucial Rule**: The endpoint strictly creates no records in the database.
 2. **Stage 2: Citizen Decision**:
    - If a candidate matches: The citizen can support the existing issue via `POST /api/issues/{issueId}/support`, increasing public urgency without clutter.
    - If distinct: The citizen proceeds to create a new issue via `POST /api/issues`, which continues to work directly as before.
+
 
 ### 13.2 Primary vs. Duplicate API Representation
 Issue responses (`IssueResponse`) expose duplicate status safely without recursive entity serialization:
@@ -270,3 +273,30 @@ The Nagrivic platform provides an authenticated endpoint for citizens to track a
   - `page` & `size`: Standard server pagination (default 20, max 100).
 - **Safe Response**: Returns `PagedResponse<IssueResponse>` with zero PII leaks (no phone numbers, emails, passwords, or internal security tokens).
 
+---
+
+## 19. Resolution Evidence & Verifiable Resolution (Task 44)
+
+Civic issues undergoing or concluding remediation can have verifiable proof attached by authorized municipal officers:
+- **Public Evidence Retrieval**: `GET /api/issues/{issueId}/resolution-evidence` allows citizens and the public to inspect completion photos and operational notes.
+- **Independence from Verification**: Attaching resolution evidence does not mark an issue as verified. The reporting citizen independently evaluates and confirms or contests the fix via `POST /api/issues/{issueId}/verify`.
+- **Activity Timeline**: Each attached evidence item registers an append-only `RESOLUTION_EVIDENCE_ADDED` event in the issue activity stream.
+- For complete architecture details, refer to [resolution-evidence.md](file:///j:/Nagrivic/docs/domains/resolution-evidence.md).
+
+---
+
+## 20. Public Civic Accountability Dashboard Integration (Task 45)
+
+Civic issues across Ahmedabad are aggregated to provide non-partisan, evidence-based civic transparency:
+- **Public API**: `GET /api/public/accountability` delivers city-wide and ward-level aggregate metrics without authentication.
+- **Canonical Defect Accounting**: Only primary canonical issues (`duplicate_of_issue_id IS NULL`) are aggregated into defect counts to prevent physical overcounting.
+- **Moderation Compliance**: Moderated/hidden issues (`moderation_status = 'HIDDEN'`) are excluded from civic statistics.
+- **Analytical Metrics**:
+  - Total issues reported, open, in progress, resolved, verified, closed, and contested (`NOT_FIXED`).
+  - Resolution funnel with citizen verification rate (`verifiedCount / resolvedCount * 100`).
+  - Priority breakdown and civic responsibility routing status (`RESOLVED` vs `UNRESOLVED`).
+  - Category and ward distributions with drill-down exploration links to `/issues`.
+  - Analytical age distribution buckets (`0-1d`, `2-7d`, `8-30d`, `31-90d`, `90+d`) denoting age since reporting (strictly advisory, not official government SLAs).
+  - 30-day reporting and resolution trend points.
+- **Privacy Assurance**: Aggregations contain zero citizen PII, zero officer names, and no doorstep GPS coordinates.
+- For complete domain architecture, refer to [accountability.md](file:///j:/Nagrivic/docs/domains/accountability.md).

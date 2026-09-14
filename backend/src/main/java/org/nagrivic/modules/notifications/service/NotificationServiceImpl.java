@@ -14,12 +14,14 @@ import org.nagrivic.modules.notifications.entity.NotificationPreferenceEntity;
 import org.nagrivic.modules.notifications.model.NotificationType;
 import org.nagrivic.modules.notifications.repository.NotificationPreferenceRepository;
 import org.nagrivic.modules.notifications.repository.NotificationRepository;
+import org.nagrivic.modules.notifications.event.NotificationCreatedEvent;
 import org.nagrivic.modules.priority.model.PriorityLevel;
 import org.nagrivic.modules.supports.repository.SupportRepository;
 import org.nagrivic.modules.users.entity.UserEntity;
 import org.nagrivic.modules.users.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final SupportRepository supportRepository;
     private final CurrentUserService currentUserService;
     private final NotificationTemplateBuilder templateBuilder;
+    private final ApplicationEventPublisher eventPublisher;
 
     public NotificationServiceImpl(
             NotificationRepository notificationRepository,
@@ -47,7 +50,8 @@ public class NotificationServiceImpl implements NotificationService {
             UserRepository userRepository,
             SupportRepository supportRepository,
             CurrentUserService currentUserService,
-            NotificationTemplateBuilder templateBuilder
+            NotificationTemplateBuilder templateBuilder,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.notificationRepository = notificationRepository;
         this.preferenceRepository = preferenceRepository;
@@ -55,6 +59,7 @@ public class NotificationServiceImpl implements NotificationService {
         this.supportRepository = supportRepository;
         this.currentUserService = currentUserService;
         this.templateBuilder = templateBuilder;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -96,8 +101,12 @@ public class NotificationServiceImpl implements NotificationService {
                 eventKey,
                 metadata
         );
-
-        return notificationRepository.save(notification);
+ 
+        NotificationEntity saved = notificationRepository.save(notification);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(NotificationCreatedEvent.fromEntity(saved));
+        }
+        return saved;
     }
 
     @Override

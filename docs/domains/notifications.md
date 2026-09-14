@@ -106,8 +106,24 @@ Before inserting a notification, `NotificationService` verifies whether a notifi
 
 ---
 
-## 11. Future Delivery Channels
+---
 
-> [!NOTE]
-> **Push, email and SMS delivery are intentionally deferred.**
-> The current system stores channel preferences and durable notifications in a provider-agnostic manner. Future tasks will attach delivery workers (FCM, SMS, Email) to listen for un-delivered notifications without altering core domain logic.
+## 11. Push Delivery Channel (Task 50)
+
+Push notification delivery is implemented via Firebase Cloud Messaging (FCM):
+- **Provider Abstraction**: Decoupled via `PushNotificationProvider` (`NoOpPushNotificationProvider` and `FcmPushNotificationProvider`).
+- **Post-Commit Event Flow**: Dispatched strictly `AFTER_COMMIT` via `NotificationCreatedEvent` so database transactions remain isolated from external network I/O.
+- **Preferences & Devices**: Respects `notification_preferences.push_enabled` and queries active devices in `push_devices`.
+- **Token Hygiene**: Inactive/unregistered tokens are automatically deactivated.
+- **Detailed Specification**: See [Push Notifications Domain](file:///j:/Nagrivic/docs/domains/push-notifications.md).
+
+---
+
+## 12. Deferred Delivery Channels (Future Scope)
+
+The following delivery channels remain deferred:
+- Email delivery
+- SMS notifications
+- WhatsApp / Telegram delivery
+- Web Push
+

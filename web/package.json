@@ -8,9 +8,17 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node ./scripts/verify-web-app.js && node ./scripts/verify-map-feature.js && node ./scripts/verify-google-auth.js",
+    "test": "node ./scripts/verify-web-app.js && node ./scripts/verify-map-feature.js && node ./scripts/verify-google-auth.js && node ./scripts/verify-admin-moderation.js && node ./scripts/verify-admin-geography.js && node ./scripts/verify-authority-workflow.js && node ./scripts/verify-resolution-evidence.js && node ./scripts/verify-accountability.js && node ./scripts/verify-ai-duplicates.js && node ./scripts/verify-image-understanding.js && node ./scripts/verify-ai-priority.js",
     "test:google-auth": "node ./scripts/verify-google-auth.js",
-    "test:map": "node ./scripts/verify-map-feature.js"
+    "test:map": "node ./scripts/verify-map-feature.js",
+    "test:moderation": "node ./scripts/verify-admin-moderation.js",
+    "test:geography": "node ./scripts/verify-admin-geography.js",
+    "test:authority": "node ./scripts/verify-authority-workflow.js",
+    "test:evidence": "node ./scripts/verify-resolution-evidence.js",
+    "test:accountability": "node ./scripts/verify-accountability.js",
+    "test:ai-duplicates": "node ./scripts/verify-ai-duplicates.js",
+    "test:image-ai": "node ./scripts/verify-image-understanding.js",
+    "test:priority-ai": "node ./scripts/verify-ai-priority.js"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.22",

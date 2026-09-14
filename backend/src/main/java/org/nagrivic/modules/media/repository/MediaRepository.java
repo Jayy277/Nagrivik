@@ -15,4 +15,6 @@ public interface MediaRepository extends JpaRepository<MediaEntity, UUID> {
     long countByIssue_Id(UUID issueId);
 
     boolean existsByStorageKey(String storageKey);
+
+    java.util.Optional<MediaEntity> findByStorageKey(String storageKey);
 }

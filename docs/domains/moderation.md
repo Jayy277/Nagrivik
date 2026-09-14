@@ -189,3 +189,56 @@ Before persisting a comment, `ContentAbuseValidator` executes deterministic safe
 1. **Zero PII Exposure**: Moderation reports, internal moderator notes, reporter identity, and investigation details are strictly excluded from public Issue and Activity APIs.
 2. **HTML & Script Sanitization**: User-supplied report descriptions are stripped of all HTML and script tags using regex normalization.
 3. **Strict RBAC Separation**: Normal citizens can only submit reports (`POST /api/moderation/reports`). All administrative moderation operations (`/api/moderation/**`) require `OFFICER` or `ADMIN` roles.
+
+---
+
+## 10. Citizen Report & Flag Mobile Experience (Task 38)
+
+### A. Affordances & User Flow
+1. **Issue Detail**:
+   - Secondary Flag action positioned in the top header navigation alongside Share.
+   - Guarded: The report button is omitted for the issue's original author (`!isReporter`).
+2. **Comment Reporting**:
+   - Compact Flag button positioned on each individual comment row alongside the timestamp.
+   - Guarded: Omitted for the comment's author (`!isAuthor`) and soft-deleted comments (`!comment.deleted`).
+3. **Authentication Guard**:
+   - If an unauthenticated user taps Report, they are prompted to sign in with Google, preserving their navigation destination (`returnTo: /issue/:id`).
+
+### B. Reusable ReportContentModal
+- Unified modal supporting `targetType` (`ISSUE` | `COMMENT`) and `targetId`.
+- Controlled radio selection for the 9 backend reasons (`SPAM`, `ABUSIVE_OR_HARASSING`, `HATEFUL_CONTENT`, `SEXUAL_OR_EXPLICIT`, `PERSONAL_INFORMATION`, `MISLEADING_OR_MANIPULATIVE`, `DUPLICATE_CONTENT`, `IRRELEVANT`, `OTHER`).
+- Inline validation: Reason selection is strictly required before submission.
+- Optional explanation: Multiline text input with 1000-character boundary counter and clear notice not to submit sensitive personal data.
+- Double-tap prevention: Form disables buttons and displays a loading indicator while the report request is in flight.
+- State management: Form cleanly resets on open/dismiss; retains entered reason and text if a retryable network or server error occurs.
+
+### C. Content Visibility Invariants
+- **No Automatic Client Side Hiding**: Submitting a moderation report creates an auditable record in `moderation_reports` with status `OPEN`. It does **not** hide or delete content, remove comments locally, alter issue status, or change priority.
+- Content remains visible according to normal public moderation visibility until a municipal officer or platform administrator explicitly acts upon it.
+
+---
+
+## 11. Web Admin & Moderation Dashboard (Task 39)
+
+### A. Role Hierarchy & Privileged Access
+- **`ROLE_CITIZEN`**: Strictly limited to reading public issues and submitting reports (`POST /api/moderation/reports`). Any access to `/admin/**` in the web application renders HTTP 403 Access Denied.
+- **`ROLE_MODERATOR`**: Authorized to view the admin overview dashboard (`/admin`), moderation summary metrics (`/api/moderation/summary`), filterable queue (`/api/moderation/reports`), report details (`/api/moderation/reports/{id}`), review reports (`PUT /reports/{id}/review`), resolve reports (`PUT /reports/{id}/resolve`), dismiss reports (`PUT /reports/{id}/dismiss`), and hide/restore content (`PUT /content/{targetType}/{targetId}/hide`, `PUT /content/{targetType}/{targetId}/restore`).
+- **`ROLE_ADMIN` & `ROLE_OFFICER`**: Possesses all moderator capabilities, plus privileged user enforcement actions (`PUT /api/moderation/users/{id}/restrict`, `PUT /api/moderation/users/{id}/unrestrict`).
+
+### B. Safe Serialization & Zero PII Leakage
+- `ModerationReportDetailResponse` returns curated records for safe inspection:
+  - `SafeUserSummary`: Exposes only `id`, `fullName`, and `role`. Strictly omits passwords, phone numbers, emails, and auth tokens.
+  - `IssueTargetDetail`: Exposes issue title, description, category, status, priority, responsibility hierarchy, and media URLs.
+  - `CommentTargetDetail`: Exposes comment text, author summary, deletion status, and associated issue context.
+  - `ActionHistory`: Exposes chronological list of prior actions taken on this report.
+
+### C. Concurrency Conflict Protection (HTTP 409)
+- Resolving, reviewing, or dismissing a report requires the report to be in an actionable state:
+  - A report that is already `RESOLVED` or `DISMISSED` cannot be transitioned or resolved again. Attempting to do so triggers a `ConflictException` returning HTTP `409 Conflict`.
+  - The Next.js detail view detects HTTP 409 responses, notifies the moderator that another team member has already acted, and provides an immediate reload button to fetch the fresh report state.
+
+### D. Architectural Invariants
+1. **Separation of Moderation & Issue Lifecycles**: Moderation actions only affect content visibility (`moderation_status = HIDDEN | VISIBLE`) or comment deletion (`is_deleted = TRUE`). They never alter an issue's workflow status (`OPEN`, `VERIFIED`, `IN_PROGRESS`, `RESOLVED`, `REOPENED`) or civic priority score.
+2. **Immutable Audit Trail**: Every moderation action creates an unalterable row in `moderation_actions` recording the report ID, moderator user ID, action type, mandatory reason, optional notes, and server timestamp.
+3. **Political Impartiality**: Grievances, municipal criticism, and political discourse are legally protected civic speech and cannot be censored.
+

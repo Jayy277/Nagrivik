@@ -9,5 +9,12 @@ public record ChangeStatusRequest(
     IssueStatus status,
 
     @Size(max = 1000, message = "Reason cannot exceed 1000 characters")
-    String reason
-) {}
+    String reason,
+
+    Long version
+) {
+    public ChangeStatusRequest(IssueStatus status, String reason) {
+        this(status, reason, null);
+    }
+}
+

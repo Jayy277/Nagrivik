@@ -11,5 +11,10 @@ import java.util.UUID;
 @Repository
 public interface CityRepository extends JpaRepository<CityEntity, UUID> {
     Optional<CityEntity> findByNameAndState(String name, String state);
+    boolean existsByNameIgnoreCaseAndStateIgnoreCase(String name, String state);
     List<CityEntity> findByState(String state);
+    List<CityEntity> findByCivicBodyId(UUID civicBodyId);
+    long countByCivicBodyId(UUID civicBodyId);
+    org.springframework.data.domain.Page<CityEntity> findAllByOrderByNameAsc(org.springframework.data.domain.Pageable pageable);
+    List<CityEntity> findAllByOrderByNameAsc();
 }

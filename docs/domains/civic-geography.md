@@ -230,3 +230,33 @@ Nagrivic launches in Ahmedabad with the Ahmedabad Municipal Corporation (AMC).
 - **No Scraped Data**: Production boundary data must come exclusively from verified, authoritative open government sources (e.g. AMC GIS portal, Census of India administrative maps).
 - **Seed Fixtures**: Minimal test fixtures are strictly isolated in automated tests and marked as development fixtures.
 
+---
+
+## 7. Administrative Management System (Task 41)
+
+Task 41 establishes a secure administrative management subsystem for Nagrivic's civic geography and responsibility configurations under the privileged namespace `/api/admin/geography/**`.
+
+### 7.1 Security & Role Model
+- **ADMIN-Only Access**: Full mutation and management capabilities (`@PreAuthorize("hasRole('ADMIN')")`).
+- **CITIZEN & MODERATOR Denied**: Regular citizens and content moderators receive `HTTP 403 Forbidden` for geography endpoints.
+- **Server-Derived Identity**: The mutating actor's UUID is derived strictly from the authenticated Spring Security `Authentication` token (`UserEntity.getId()`). Client-supplied actor IDs are forbidden.
+
+### 7.2 Safety & Deactivation Rules
+- **No Hard-Deletion of Referenced Entities**: Entities (civic bodies, cities, wards, departments, mappings) referenced by historical issues cannot be deleted (`HTTP 409 Conflict`).
+- **Safe Active/Inactive Toggling**: Administrative actions prefer `isActive = false` to preserve referential integrity and historical accountability.
+- **Historical Immutability**: Modifying a mapping never mutates historical issue responsibility records retroactively. Re-resolution is explicit and bounded.
+
+### 7.3 Concurrency Protection (Optimistic Locking)
+- All civic geography tables include `@Version Long version` managed by JPA.
+- Every administrative update or state change validates the submitted version against the current database state.
+- Stale version updates throw `ObjectOptimisticLockingFailureException`, which is caught and returned as `HTTP 409 Conflict`.
+
+### 7.4 Append-Only Audit Trail
+- All administrative geography mutations generate immutable, append-only records in `civic_geography_audits`.
+- Captures `actor_id`, `entity_type`, `entity_id`, `action`, `previous_state`, `new_state`, `reason`, `source`, `source_url`, and `created_at`.
+- Historical audit records cannot be altered or deleted via the API.
+
+### 7.5 Bounded Responsibility Re-Resolution
+- Privileged endpoint `POST /api/admin/geography/re-resolve` safely triggers the responsibility resolver for existing issues in bounded batches (max limit: 100).
+- Re-resolution alters only civic responsibility fields (`civic_body_id`, `city_id`, `ward_id`, `department_id`, `responsibility_status`, `responsibility_resolved_at`, `responsibility_source`). It never mutates issue workflow status, priority, reporter identity, or citizen comments.
+

@@ -41,6 +41,9 @@ export function Footer() {
             <h4>Platform</h4>
             <ul>
               <li>
+                <Link href="/accountability">Civic Accountability Dashboard</Link>
+              </li>
+              <li>
                 <Link href="/#how-it-works">How It Works</Link>
               </li>
               <li>

@@ -36,6 +36,46 @@
 | `GET` | `/api/issues/{id}/comments` | *Deferred* | List comments and updates on an issue |
 | `POST` | `/api/issues/{id}/comments` | *Deferred* | Add a comment or resolution evidence to an issue |
 | `GET` | `/api/categories` | *Deferred* | List active civic categories (Roads, Garbage, etc.) |
+| `GET` | `/api/admin/geography/overview` | **Implemented** | Get high-level summary counters and metrics for civic geography (ADMIN only) |
+| `GET` | `/api/admin/geography/civic-bodies` | **Implemented** | List civic bodies with active filter (ADMIN only) |
+| `POST` | `/api/admin/geography/civic-bodies` | **Implemented** | Create civic body with provenance (ADMIN only) |
+| `PUT` | `/api/admin/geography/civic-bodies/{id}` | **Implemented** | Update civic body with optimistic lock (ADMIN only) |
+| `PATCH` | `/api/admin/geography/civic-bodies/{id}/active` | **Implemented** | Safe active/inactive toggle (ADMIN only) |
+| `GET` | `/api/admin/geography/cities` | **Implemented** | List cities with active filter (ADMIN only) |
+| `POST` | `/api/admin/geography/cities` | **Implemented** | Create city under civic body (ADMIN only) |
+| `PUT` | `/api/admin/geography/cities/{id}` | **Implemented** | Update city with optimistic lock (ADMIN only) |
+| `PATCH` | `/api/admin/geography/cities/{id}/active` | **Implemented** | Safe city active toggle (ADMIN only) |
+| `GET` | `/api/admin/geography/wards` | **Implemented** | Paginated search of wards by city, name, code, active status (ADMIN only) |
+| `POST` | `/api/admin/geography/wards` | **Implemented** | Create authoritative ward with provenance (ADMIN only) |
+| `PUT` | `/api/admin/geography/wards/{id}` | **Implemented** | Update ward metadata and boundary geometry (ADMIN only) |
+| `PATCH` | `/api/admin/geography/wards/{id}/active` | **Implemented** | Safe ward active toggle (ADMIN only) |
+| `POST` | `/api/admin/geography/wards/validate` | **Implemented** | Validate all ward boundary polygons for SRID 4326, valid MultiPolygon topology (ADMIN only) |
+| `GET` | `/api/admin/geography/departments` | **Implemented** | Paginated search of departments with active filter (ADMIN only) |
+| `POST` | `/api/admin/geography/departments` | **Implemented** | Create department under civic body (ADMIN only) |
+| `PUT` | `/api/admin/geography/departments/{id}` | **Implemented** | Update department with optimistic lock (ADMIN only) |
+| `PATCH` | `/api/admin/geography/departments/{id}/active` | **Implemented** | Safe department active toggle (ADMIN only) |
+| `GET` | `/api/admin/geography/category-department-mappings` | **Implemented** | Paginated list of category routing mappings (ADMIN only) |
+| `POST` | `/api/admin/geography/category-department-mappings` | **Implemented** | Create category -> department mapping rule (ADMIN only) |
+| `PATCH` | `/api/admin/geography/category-department-mappings/{id}/active` | **Implemented** | Safe category mapping active toggle (ADMIN only) |
+| `GET` | `/api/admin/geography/ward-department-mappings` | **Implemented** | Paginated list of ward-specific routing mappings (ADMIN only) |
+| `POST` | `/api/admin/geography/ward-department-mappings` | **Implemented** | Create ward -> department mapping rule (ADMIN only) |
+| `PATCH` | `/api/admin/geography/ward-department-mappings/{id}/active` | **Implemented** | Safe ward mapping active toggle (ADMIN only) |
+| `POST` | `/api/admin/geography/re-resolve` | **Implemented** | Safely re-resolve responsibility for existing issues in bounded batches (ADMIN only) |
+| `GET` | `/api/admin/geography/audits` | **Implemented** | Append-only audit history of administrative geography changes (ADMIN only) |
+| `GET` | `/api/authority/dashboard` | **Implemented** | High-level metrics & active jurisdiction scopes for authority officers (OFFICER, ADMIN) |
+| `GET` | `/api/authority/issues` | **Implemented** | Paginated search of scoped civic issues within officer's jurisdiction (OFFICER, ADMIN) |
+| `GET` | `/api/authority/issues/{id}` | **Implemented** | Detailed issue inspection with allowed transitions & sanitized comments (OFFICER, ADMIN) |
+| `POST` | `/api/authority/issues/{id}/status` | **Implemented** | Execute operational state transition with optimistic locking & mandatory reason (OFFICER, ADMIN) |
+| `POST` | `/api/authority/issues/{id}/resolution-evidence` | **Implemented** | Upload resolution evidence (completion photo, note, before/after) with authority scope enforcement (OFFICER, ADMIN) |
+| `GET` | `/api/issues/{id}/resolution-evidence` | **Implemented** | Public inspection of resolution evidence attached to an issue |
+| `GET` | `/api/public/accountability` | **Implemented** | Public Civic Accountability Dashboard aggregate metrics and breakdowns across Ahmedabad (no auth required) |
+| `POST` | `/api/issues/check-duplicates` | **Implemented** | Pre-creation duplicate check with deterministic spatial and AI similarity signals |
+| `GET` | `/api/admin/duplicates/suggestions` | **Implemented** | List pending AI duplicate suggestions for review (MODERATOR, OFFICER, ADMIN) |
+| `POST` | `/api/admin/duplicates/suggestions/{id}/link` | **Implemented** | Link suggestion as duplicate with canonical normalization (MODERATOR, OFFICER, ADMIN) |
+| `POST` | `/api/admin/duplicates/suggestions/{id}/dismiss` | **Implemented** | Dismiss duplicate suggestion with optional reason (MODERATOR, OFFICER, ADMIN) |
+| `POST` | `/api/admin/duplicates/scan/{issueId}` | **Implemented** | Trigger duplicate candidate scan for existing issue (MODERATOR, OFFICER, ADMIN) |
+| `POST` | `/api/issues/{id}/media/{mediaId}/analyze` | **Implemented** | Trigger AI image understanding analysis on an issue photo (Reporter, MODERATOR, OFFICER, ADMIN) |
+| `GET` | `/api/issues/{id}/media/{mediaId}/analysis` | **Implemented** | Fetch AI image understanding analysis results for an issue photo (Reporter, MODERATOR, OFFICER, ADMIN) |
 
 ---
 
@@ -230,3 +270,43 @@ For interactive civic map exploration and nearby discovery:
     "last": true
   }
   ```
+
+---
+
+## AI Priority Assistance Endpoints (Task 48)
+
+### 1. Inspect AI Priority Recommendation (`GET /api/issues/{issueId}/priority/ai-recommendation`)
+- **Authentication**: Required (`Bearer JWT`).
+- **Authorization**: Accessible by the issue reporter, or authorized staff (`ROLE_OFFICER`, `ROLE_AUTHORITY`, `ROLE_MODERATOR`, `ROLE_ADMIN`). Unauthorized citizens receive `403 Forbidden`.
+- **Response**: `200 OK`
+  ```json
+  {
+    "issueId": "91a8e234-927b-4028-98e9-d7575306ea64",
+    "status": "COMPLETED",
+    "provider": "LOCAL_HEURISTIC",
+    "model": "heuristic-priority-v1",
+    "modelVersion": "1.0.0",
+    "calculationVersion": "v1",
+    "suggestedSeverity": 25,
+    "suggestedImpact": 15,
+    "suggestedSafety": 20,
+    "severityConfidence": 85,
+    "impactConfidence": 80,
+    "safetyConfidence": 90,
+    "confidence": 85,
+    "signals": [
+      "High severity keywords detected in issue text",
+      "Task 47 visual signals: [DEEP_POTHOLE]",
+      "Task 47 visual safety concern: HIGH"
+    ],
+    "appliedToCalculation": false,
+    "createdAt": "2026-09-14T14:10:00Z"
+  }
+  ```
+
+### 2. Trigger AI Priority Assessment (`POST /api/issues/{issueId}/priority/ai-assess`)
+- **Authentication**: Required (`Bearer JWT`).
+- **Authorization**: Privileged operation. Restricted to `ROLE_OFFICER`, `ROLE_AUTHORITY`, `ROLE_MODERATOR`, `ROLE_ADMIN`. Ordinary citizens receive `403 Forbidden`.
+- **Response**: `200 OK` (returns updated `AiPriorityRecommendationResponse`).
+- **Audit**: Automatically records a `PRIORITY_AI_ASSESSED` entry in `issue_activity`.
+

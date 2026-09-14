@@ -74,9 +74,9 @@ Nagrivic is architected around the core principle of **one central backend and o
 - **Geographic Containment (`ST_Contains`)**: Automatic detection of which municipal ward and administrative zone an issue falls within.
 - **Spatial Indexing (GiST)**: Sub-millisecond bounding box and nearest-neighbor spatial queries.
 
-### Object Storage (Future)
-- **S3-Compatible Cloud Storage**: Storage for high-resolution citizen photos, video attachments, and official resolution proof photos.
-- **Pre-signed URLs**: Secure direct upload and download links, keeping heavy media traffic off the application server.
+### Object Storage (Task 49 Production Foundation)
+- **S3-Compatible Cloud Storage**: Provider-independent abstraction (`ObjectStorageProvider`) supporting AWS S3, MinIO, Cloudflare R2, Google Cloud Storage, Local Filesystem, and No-Op storage.
+- **Direct & Presigned Media Workflows**: Presigned upload/download URLs for citizen issue photos and resolution evidence, isolating heavy I/O from backend application servers.
 
 ---
 
@@ -108,6 +108,8 @@ backend/
                     ├── status/
                     ├── moderation/
                     ├── notifications/
+                    ├── push/
+                    ├── ai/
                     └── admin/
 ```
 
@@ -120,6 +122,58 @@ backend/
 5. **No Microservices**: Microservices introduce distributed transactions, network latency, serialization overhead, and deployment complexity that are unnecessary and harmful at MVP stage.
 6. **Single Database**: All modules share one PostgreSQL + PostGIS database instance. Do not create separate databases per module.
 7. **Future Extraction Path**: Because module boundaries are strictly enforced via clear domain interfaces and package structures, any module (e.g., `notifications` or `media`) can be extracted into an independent microservice in the future **only if real scale requirements justify it**.
+
+### 3.1 Push Notification Architecture (FCM Delivery Channel)
+
+Push notifications (Task 50) are designed as a non-blocking delivery channel that complements the authoritative in-app notification domain (Task 23):
+
+```
++-------------------------------------------------------------------------------+
+|                             DATABASE TRANSACTION                              |
+|                                                                               |
+|  Status Change / Comment / Assignment                                         |
+|         |                                                                     |
+|         v                                                                     |
+|  NotificationService.createNotification(...)                                  |
+|         |                                                                     |
+|         +---> Persist NotificationEntity (PostgreSQL)                         |
+|         +---> ApplicationEventPublisher.publishEvent(NotificationCreatedEvent)|
+|         |                                                                     |
+|  COMMIT TRANSACTION                                                           |
++-------------------------------------------------------------------------------+
+                                      |
+                                      v (AFTER_COMMIT Phase)
++-------------------------------------------------------------------------------+
+|                       PUSH DISPATCHER & DELIVERY CHANNEL                      |
+|                                                                               |
+|  PushNotificationDispatcher.onNotificationCreated(event)                      |
+|         |                                                                     |
+|         +---> Check User Notification Preferences                             |
+|         +---> Lookup Active User Device Tokens (push_devices)                 |
+|         +---> PushNotificationProvider.sendMulticast(tokens, message)         |
+|         |        |                                                            |
+|         |        +---> FcmPushNotificationProvider (Firebase Cloud Messaging) |
+|         |        +---> NoOpPushNotificationProvider (Offline / Tests)         |
+|         |                                                                     |
+|         +---> Record Delivery Audit (notification_push_deliveries)            |
+|         +---> Auto-deactivate Invalid/Unregistered Tokens                     |
++-------------------------------------------------------------------------------+
+                                      |
+                                      v
++-------------------------------------------------------------------------------+
+|                        MOBILE CLIENT (NagrivicApp)                            |
+|                                                                               |
+|  1. Register Push Token: POST /api/push/devices                               |
+|  2. Receive Notification -> Open Deep Link: nagrivicapp://issue/{issueId}     |
+|  3. Logout Deactivation: POST /api/push/devices/deactivate                     |
++-------------------------------------------------------------------------------+
+```
+
+**Key Architectural Guarantees**:
+- **Strict Post-Commit Dispatch**: Push notification dispatch is hooked via `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` with an immutable scalar payload event (`NotificationCreatedEvent`). Database commits NEVER fail or roll back due to push delivery issues.
+- **Provider Decoupling**: Application core codes to `PushNotificationProvider` interface. Switching between FCM, APNs, or a mock provider requires only configuration updates.
+- **Automatic Token Lifecycle**: Tokens returning `UNREGISTERED` or `INVALID_ARGUMENT` from Firebase are immediately marked inactive (`is_active = FALSE`).
+- **Privacy & Minimization**: Push notification data payloads contain only minimal identifiers (`notificationId`, `issueId`, `type`, `deepLink`) and strictly omit personally identifiable information (PII) or user coordinates.
 
 ---
 

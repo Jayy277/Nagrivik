@@ -37,6 +37,7 @@ public class DuplicateDetectionService {
     private final CurrentUserService currentUserService;
     private final org.nagrivic.modules.activity.service.IssueActivityService issueActivityService;
     private final org.nagrivic.modules.notifications.service.NotificationService notificationService;
+    private final AiDuplicateDetectionService aiDetectionService;
 
     @Value("${nagrivic.duplicates.detection-radius-meters:100.0}")
     private double detectionRadiusMeters;
@@ -52,7 +53,8 @@ public class DuplicateDetectionService {
             SupportRepository supportRepository,
             CurrentUserService currentUserService,
             org.nagrivic.modules.activity.service.IssueActivityService issueActivityService,
-            @org.springframework.context.annotation.Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService
+            @org.springframework.context.annotation.Lazy org.nagrivic.modules.notifications.service.NotificationService notificationService,
+            AiDuplicateDetectionService aiDetectionService
     ) {
         this.candidateRepository = candidateRepository;
         this.issueRepository = issueRepository;
@@ -62,6 +64,7 @@ public class DuplicateDetectionService {
         this.currentUserService = currentUserService;
         this.issueActivityService = issueActivityService;
         this.notificationService = notificationService;
+        this.aiDetectionService = aiDetectionService;
     }
 
     /**
@@ -113,17 +116,19 @@ public class DuplicateDetectionService {
                 ? request.radiusMeters()
                 : detectionRadiusMeters;
 
+        int candidateQueryLimit = aiDetectionService.isEnabled() ? 20 : maxCitizenCandidates;
+
         List<DuplicateCandidateProjection> candidateProjections = candidateRepository.findPotentialDuplicates(
                 category.getId(),
                 targetLon,
                 targetLat,
                 radius,
                 null,
-                maxCitizenCandidates
+                candidateQueryLimit
         );
 
         if (candidateProjections.isEmpty()) {
-            return DuplicateCheckResponse.empty();
+            return DuplicateCheckResponse.empty(aiDetectionService.getAiStatus());
         }
 
         List<UUID> candidateIssueIds = candidateProjections.stream()
@@ -138,18 +143,99 @@ public class DuplicateDetectionService {
             supportCounts.put(issueId, count);
         }
 
-        List<DuplicateCandidateDto> candidates = candidateProjections.stream()
-                .map(proj -> new DuplicateCandidateDto(
+        List<DuplicateCandidateDto> candidates;
+        if (aiDetectionService.isEnabled()) {
+            Map<UUID, IssueEntity> issueMap = issueRepository.findAllById(candidateIssueIds).stream()
+                    .collect(java.util.stream.Collectors.toMap(IssueEntity::getId, java.util.function.Function.identity()));
+
+            List<org.nagrivic.modules.duplicates.ai.DuplicateAiRequest.CandidateInfo> candidateInfos = new ArrayList<>();
+            for (var proj : candidateProjections) {
+                IssueEntity ent = issueMap.get(proj.getIssueId());
+                String desc = ent != null ? ent.getDescription() : null;
+                candidateInfos.add(new org.nagrivic.modules.duplicates.ai.DuplicateAiRequest.CandidateInfo(
                         proj.getIssueId(),
                         proj.getTitle(),
-                        new CategorySummary(proj.getCategoryId(), proj.getCategoryName(), proj.getCategorySlug()),
-                        proj.getDistanceMeters(),
-                        IssueStatus.valueOf(proj.getStatus()),
-                        supportCounts.getOrDefault(proj.getIssueId(), 0L)
-                ))
-                .toList();
+                        desc,
+                        proj.getCategoryId(),
+                        proj.getCategoryName(),
+                        proj.getDistanceMeters()
+                ));
+            }
 
-        return DuplicateCheckResponse.of(candidates);
+            org.nagrivic.modules.duplicates.ai.DuplicateAiRequest.NewIssueInfo newIssueInfo =
+                    new org.nagrivic.modules.duplicates.ai.DuplicateAiRequest.NewIssueInfo(
+                            request.title(),
+                            request.description(),
+                            category.getId(),
+                            category.getName()
+                    );
+
+            var aiResult = aiDetectionService.analyzeSafely(
+                    new org.nagrivic.modules.duplicates.ai.DuplicateAiRequest(newIssueInfo, candidateInfos)
+            );
+            Map<UUID, org.nagrivic.modules.duplicates.ai.DuplicateCandidateScore> scoreMap = aiResult.candidateScores().stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            org.nagrivic.modules.duplicates.ai.DuplicateCandidateScore::candidateIssueId,
+                            java.util.function.Function.identity(),
+                            (a, b) -> a
+                    ));
+
+            candidates = candidateProjections.stream()
+                    .map(proj -> {
+                        var score = scoreMap.get(proj.getIssueId());
+                        Integer aiScore = score != null ? score.score() : null;
+                        var confidence = score != null ? score.confidence() : null;
+                        List<String> signals = score != null && !score.signals().isEmpty()
+                                ? score.signals()
+                                : List.of("Same category: " + proj.getCategoryName(), "Location " + Math.round(proj.getDistanceMeters()) + "m away");
+                        var matchType = score != null ? org.nagrivic.modules.duplicates.model.DuplicateMatchType.BOTH
+                                : org.nagrivic.modules.duplicates.model.DuplicateMatchType.DETERMINISTIC_MATCH;
+
+                        return new DuplicateCandidateDto(
+                                proj.getIssueId(),
+                                proj.getTitle(),
+                                new CategorySummary(proj.getCategoryId(), proj.getCategoryName(), proj.getCategorySlug()),
+                                proj.getDistanceMeters(),
+                                IssueStatus.valueOf(proj.getStatus()),
+                                supportCounts.getOrDefault(proj.getIssueId(), 0L),
+                                true,
+                                aiScore,
+                                confidence,
+                                matchType,
+                                signals
+                        );
+                    })
+                    .sorted((a, b) -> {
+                        if (a.aiScore() != null && b.aiScore() != null && !a.aiScore().equals(b.aiScore())) {
+                            return Integer.compare(b.aiScore(), a.aiScore());
+                        }
+                        return Double.compare(a.distanceMeters(), b.distanceMeters());
+                    })
+                    .limit(maxCitizenCandidates)
+                    .toList();
+        } else {
+            candidates = candidateProjections.stream()
+                    .map(proj -> new DuplicateCandidateDto(
+                            proj.getIssueId(),
+                            proj.getTitle(),
+                            new CategorySummary(proj.getCategoryId(), proj.getCategoryName(), proj.getCategorySlug()),
+                            proj.getDistanceMeters(),
+                            IssueStatus.valueOf(proj.getStatus()),
+                            supportCounts.getOrDefault(proj.getIssueId(), 0L),
+                            true,
+                            null,
+                            null,
+                            org.nagrivic.modules.duplicates.model.DuplicateMatchType.DETERMINISTIC_MATCH,
+                            List.of(
+                                    "Same category: " + proj.getCategoryName(),
+                                    "Location " + Math.round(proj.getDistanceMeters()) + "m away"
+                            )
+                    ))
+                    .limit(maxCitizenCandidates)
+                    .toList();
+        }
+
+        return DuplicateCheckResponse.of(candidates, aiDetectionService.getAiStatus());
     }
 
     /**

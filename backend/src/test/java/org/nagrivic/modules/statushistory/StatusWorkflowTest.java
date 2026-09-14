@@ -78,6 +78,9 @@ class StatusWorkflowTest {
     @Autowired
     private StatusHistoryService statusHistoryService;
 
+    @Autowired
+    private org.nagrivic.modules.activity.repository.IssueActivityRepository issueActivityRepository;
+
     private UserEntity reporterCitizen;
     private String reporterToken;
 
@@ -97,6 +100,7 @@ class StatusWorkflowTest {
                 .apply(springSecurity())
                 .build();
 
+        issueActivityRepository.deleteAll();
         statusHistoryRepository.deleteAll();
         issueRepository.deleteAll();
         categoryRepository.deleteAll();
@@ -440,5 +444,110 @@ class StatusWorkflowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldRejectResolutionVerificationByUnauthenticatedUser() throws Exception {
+        IssueEntity issue = issueService.createIssue(
+                reporterCitizen,
+                testCategory.getId(),
+                testLocation.getId(),
+                "Pothole",
+                "Description"
+        );
+        issue.setStatus(IssueStatus.RESOLVED);
+        issueRepository.save(issue);
+
+        VerifyResolutionRequest req = new VerifyResolutionRequest(true, null);
+        mockMvc.perform(post("/api/issues/" + issue.getId() + "/verify-resolution")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRejectResolutionVerificationWithReasonExceeding1000Characters() throws Exception {
+        IssueEntity issue = issueService.createIssue(
+                reporterCitizen,
+                testCategory.getId(),
+                testLocation.getId(),
+                "Pothole",
+                "Description"
+        );
+        issue.setStatus(IssueStatus.RESOLVED);
+        issueRepository.save(issue);
+
+        String tooLongReason = "A".repeat(1001);
+        VerifyResolutionRequest req = new VerifyResolutionRequest(false, tooLongReason);
+        mockMvc.perform(post("/api/issues/" + issue.getId() + "/verify-resolution")
+                        .header("Authorization", "Bearer " + reporterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectDuplicateResolutionVerificationAfterCitizenVerified() throws Exception {
+        IssueEntity issue = issueService.createIssue(
+                reporterCitizen,
+                testCategory.getId(),
+                testLocation.getId(),
+                "Pothole",
+                "Description"
+        );
+        issue.setStatus(IssueStatus.RESOLVED);
+        issueRepository.save(issue);
+
+        // First verification succeeds: RESOLVED -> CITIZEN_VERIFIED
+        VerifyResolutionRequest req = new VerifyResolutionRequest(true, "Fixed nicely");
+        mockMvc.perform(post("/api/issues/" + issue.getId() + "/verify-resolution")
+                        .header("Authorization", "Bearer " + reporterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CITIZEN_VERIFIED"));
+
+        List<StatusHistoryEntity> historyAfterFirst = statusHistoryRepository.findByIssue_IdOrderByCreatedAtAsc(issue.getId());
+        int historyCount = historyAfterFirst.size();
+
+        // Duplicate verification must be rejected because issue is no longer RESOLVED
+        mockMvc.perform(post("/api/issues/" + issue.getId() + "/verify-resolution")
+                        .header("Authorization", "Bearer " + reporterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+
+        // Status history must remain unchanged (no duplicate history entry)
+        List<StatusHistoryEntity> historyAfterSecond = statusHistoryRepository.findByIssue_IdOrderByCreatedAtAsc(issue.getId());
+        assertEquals(historyCount, historyAfterSecond.size());
+    }
+
+    @Test
+    void shouldRecordStatusChangedActivityUponResolutionVerification() throws Exception {
+        IssueEntity issue = issueService.createIssue(
+                reporterCitizen,
+                testCategory.getId(),
+                testLocation.getId(),
+                "Pothole",
+                "Description"
+        );
+        issue.setStatus(IssueStatus.RESOLVED);
+        issueRepository.save(issue);
+
+        VerifyResolutionRequest req = new VerifyResolutionRequest(true, "All fixed");
+        mockMvc.perform(post("/api/issues/" + issue.getId() + "/verify-resolution")
+                        .header("Authorization", "Bearer " + reporterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+
+        org.springframework.data.domain.Page<org.nagrivic.modules.activity.entity.IssueActivityEntity> activities =
+                issueActivityRepository.findByIssue_Id(issue.getId(), org.springframework.data.domain.Pageable.unpaged());
+
+        assertFalse(activities.isEmpty());
+        boolean hasStatusChangedActivity = activities.getContent().stream()
+                .anyMatch(a -> a.getEventType() == org.nagrivic.modules.activity.model.IssueActivityType.STATUS_CHANGED
+                        && "CITIZEN_VERIFIED".equals(a.getEventData().get("to")));
+        assertTrue(hasStatusChangedActivity, "Should record STATUS_CHANGED activity with target status CITIZEN_VERIFIED");
     }
 }

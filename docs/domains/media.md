@@ -162,13 +162,32 @@ Citizen-uploaded photos of public spaces may unintentionally capture sensitive p
 
 ---
 
-## 8. Deferred Features (Future Scope)
+## 8. AI-Assisted Image Understanding (Task 47)
+
+Civic issue photos can be analyzed via an assistive AI image understanding layer (`ImageUnderstandingService`):
+- **Structured Visual Signals**: Extracts likely civic category (`likelyCategory`), confidence (`categoryConfidence`), observed problem types (`visualProblemTypes`), image quality assessment (`imageQuality`, `qualityIssues`), civic relevance (`relevance`), severity signals, and safety concerns.
+- **Strict Invariants**: Advisory only; never alters issue category, status, priority, or civic responsibility. Never performs facial recognition or vehicle license plate tracking.
+- **Detailed Specification**: See [AI Image Understanding Domain](file:///j:/Nagrivic/docs/domains/ai-image-understanding.md).
+
+---
+
+---
+
+## 9. Object Storage Foundation (Task 49)
+
+Task 49 implemented a production-ready, provider-independent object storage abstraction:
+- **Interface**: `ObjectStorageService` / `MediaStorageService` (`store`, `load`, `delete`, `exists`, `getMetadata`, `generatePresignedReadUrl`).
+- **Providers**: `LocalMediaStorageService` (for local development and offline CI) and `S3ObjectStorageService` (AWS S3, MinIO, Cloudflare R2).
+- **Controlled Streaming**: Endpoints `GET /api/issues/{id}/media/{mediaId}` and `GET /api/media/**` with database storageKey verification, path-traversal prevention, and security headers (`X-Content-Type-Options: nosniff`, `Content-Disposition: inline`).
+- **Two-System Consistency**: Compensation cleanup (`delete(storageKey)`) triggered if database metadata persistence fails.
+- **Detailed Specification**: See [Object Storage Foundation Domain](file:///j:/Nagrivic/docs/domains/object-storage.md).
+
+---
+
+## 10. Deferred Features (Future Scope)
 
 The following features remain deferred to future tasks:
-- Cloud object storage providers (AWS S3, Cloudflare R2, MinIO)
-- Pre-signed read/download URLs (`GET /api/media/...`)
-- Image compression, thumbnail generation, and resizing
-- Mobile camera and gallery pickers (Task 13+)
-- AI image moderation or automated blurring
+- Image compression, thumbnail generation, and progressive resizing
+- Mobile camera and gallery pickers (React Native)
 - Video / audio / PDF document support
 

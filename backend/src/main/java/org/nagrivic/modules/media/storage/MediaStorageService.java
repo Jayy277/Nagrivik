@@ -6,7 +6,7 @@ import java.io.InputStream;
  * Storage abstraction for media binary objects.
  * Decouples the domain layer from specific storage backends (Local Disk, S3, MinIO, Cloudflare R2, etc.).
  */
-public interface MediaStorageService {
+public interface MediaStorageService extends ObjectStorageService {
 
     /**
      * Stores media binary content at the specified storage key.

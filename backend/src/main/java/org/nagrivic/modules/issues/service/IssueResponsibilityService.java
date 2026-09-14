@@ -26,4 +26,19 @@ public interface IssueResponsibilityService {
      * @param issueId the ID of the issue to re-resolve
      */
     void resolveIssueResponsibility(UUID issueId);
+
+    /**
+     * Scans and re-evaluates all previously UNRESOLVED issues.
+     *
+     * @return count of issues successfully resolved
+     */
+    int reResolveUnresolvedIssues();
+
+    /**
+     * Re-evaluates civic responsibility across all existing issues without modifying
+     * unrelated issue fields (status, priority, reporter, media, activity).
+     *
+     * @return count of issues with updated responsibility
+     */
+    int reResolveAllIssues();
 }

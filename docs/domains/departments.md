@@ -67,3 +67,31 @@ The responsible department is resolved using the following order of precedence:
    - If a matching ward-specific department is found, return it.
 4. **Civic-Body Level Fallback**: If no ward-specific restriction exists, return the primary department for the category in that civic body.
 5. **Unmapped Graceful Degradation**: If no mapping exists, return `Optional.empty()` (`department: null` in public response). Issue reporting continues uninterrupted.
+
+---
+
+## 4. Administrative Department & Mapping Management (Task 41)
+
+Task 41 introduces administrative management for departments and routing mappings under the privileged namespace `/api/admin/geography/**`.
+
+### 4.1 Role & Security Model
+- **ADMIN-Only Operations**: Managing departments, category-department mappings, and ward-department mappings is restricted exclusively to platform `ADMIN` users (`@PreAuthorize("hasRole('ADMIN')")`).
+- **CITIZEN & MODERATOR Denied**: Non-admin roles receive `HTTP 403 Forbidden` on all mutation endpoints.
+- **Server-Derived Identity**: The mutating actor identity is extracted exclusively from the authenticated JWT principal (`currentUserService.getCurrentUser()`).
+
+### 4.2 Safe Deactivation & Historical Protection
+- **No Hard-Deletion of Referenced Records**: Departments referenced by historical issues cannot be hard-deleted (`HTTP 409 Conflict`).
+- **Prefer Inactive Status**: Administrative workflows toggle `is_active = false` rather than destructive deletion.
+- **Historical Issue Immutability**: Modifying or deactivating a department or mapping rule does not retroactively rewrite historical issues. Historical issues retain their assigned responsibility unless explicitly updated via bounded re-resolution.
+
+### 4.3 Optimistic Concurrency Control
+- All department and mapping records include JPA `@Version Long version` columns.
+- Updating or toggling an entity requires validating the submitted version against the database. Stale updates return `HTTP 409 Conflict`, prompting the administrative UI to reload fresh data.
+
+### 4.4 Append-Only Audit Trail
+- Every administrative mutation (creation, metadata update, activation toggle, deletion) records an append-only audit entry in `civic_geography_audits`.
+- Audit actions include:
+  - `DEPARTMENT_CREATED`, `DEPARTMENT_UPDATED`, `DEPARTMENT_ACTIVATED`, `DEPARTMENT_DEACTIVATED`, `DEPARTMENT_DELETED`
+  - `CATEGORY_DEPARTMENT_MAPPING_CREATED`, `CATEGORY_DEPARTMENT_MAPPING_ACTIVATED`, `CATEGORY_DEPARTMENT_MAPPING_DEACTIVATED`, `CATEGORY_DEPARTMENT_MAPPING_DELETED`
+  - `WARD_DEPARTMENT_MAPPING_CREATED`, `WARD_DEPARTMENT_MAPPING_ACTIVATED`, `WARD_DEPARTMENT_MAPPING_DEACTIVATED`, `WARD_DEPARTMENT_MAPPING_DELETED`
+

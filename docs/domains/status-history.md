@@ -146,13 +146,27 @@ Content-Type: application/json
 }
 ```
 
-- **Authentication**: Required.
-- **Authorization**: Only the original reporting user can verify resolution. Other users receive `403 Forbidden`.
-- **Precondition**: The issue must currently be in `RESOLVED` status. If not, returns `400 Bad Request` (`INVALID_STATUS_TRANSITION`).
-- **Validation**: If `fixed: false`, `reason` is strictly required. If blank, returns `400 Bad Request` (`VALIDATION_ERROR`).
-- **Behavior**:
+- **Authentication**: Required (JWT Bearer token).
+- **Authorization**: Strictly restricted to the original reporting citizen (`issue.reporter.id == currentUser.id`). Non-reporters receive `403 Forbidden`.
+- **Precondition**: The issue must currently be in `RESOLVED` status. Transitions from any other status return `400 Bad Request` (`INVALID_STATUS_TRANSITION`).
+- **Validation**:
+  - `fixed`: Mandatory boolean (`true` or `false`).
+  - `reason`: Required when `fixed: false` (1–1000 characters after whitespace trimming). Empty or whitespace-only strings are rejected with `400 Bad Request`.
+- **Behavior & Transitions**:
   - `fixed: true`: Transitions `RESOLVED -> CITIZEN_VERIFIED`.
-  - `fixed: false`: Transitions `RESOLVED -> NOT_FIXED`, and immediately transitions `NOT_FIXED -> IN_PROGRESS` to reopen the issue for municipal attention. Both events are recorded in `status_history`.
+  - `fixed: false`: Transitions `RESOLVED -> NOT_FIXED`. Subsequent work can transition `NOT_FIXED -> IN_PROGRESS`.
+  - Every transition appends an authoritative, immutable entry to `status_history` containing the status change, timestamp, and optional reason.
+  - Generates a domain activity event (`STATUS_CHANGED`) with `from`, `to`, and `reason` metadata.
+  - Recalculates issue priority and triggers notifications via `NotificationService`.
+  - Repeated verification attempts on an already verified/reopened issue are rejected with `400 Bad Request`, guaranteeing idempotent history integrity.
+- **Mobile Integration (Task 37)**:
+  - Resolution verification UI is surfaced on the Issue Detail screen strictly when `authStatus === 'AUTHENTICATED'`, `user.id === issue.reportedBy`, and `issue.status === 'RESOLVED'`.
+  - Neutral wording: *"Was this issue actually fixed?"* with actions *"Yes, it's fixed"* and *"No, it's not fixed"*.
+  - Fixed flow requires explicit confirmation before calling the API.
+  - Not-fixed flow features a multiline text area with character counter (`/1000`), client-side trimming, and text preservation on network failure.
+  - Double submission is guarded through button disabling and in-flight loading indicators.
+  - Returning to *My Reports* automatically refetches the updated issue status via `useFocusEffect`.
+  - **Resolution Photo Evidence Deferred**: Photo/media evidence capture for resolution verification is explicitly deferred to Task 44 (*Resolution Evidence*).
 
 ### 4.3 Get Issue Status History (Public)
 ```http
@@ -192,3 +206,22 @@ GET /api/issues/{issueId}/status-history
 }
 ```
 *Note: Sensitive information such as phone numbers, emails, or system passwords are NEVER included in `changedBy`.*
+
+---
+
+## 7. Authority Operational Workflow Integration (Task 43)
+
+In Task 43, operational issue state changes by municipal authorities (`/api/authority/issues/{issueId}/status`) are routed through `StatusHistoryService`:
+- **Server-Side Authority Scope Verification**: `AuthorityScopeService.validateAuthorityScope(user, issue)` ensures the officer user has an active assignment covering the issue's ward or department. Unresolved civic responsibility issues cannot be modified.
+- **Forbidden State Changes**: Authorities are prohibited from transitioning issues to `CITIZEN_VERIFIED` or `NOT_FIXED`.
+- **Mandatory Resolution Notes**: Marking an issue as `RESOLVED` mandates an operational resolution report (up to 1,000 chars).
+- **Concurrency & Optimistic Locking**: The request accepts an optional `version` field. If mismatched with the current database entity version, an HTTP 409 Conflict exception is raised.
+
+---
+
+## 8. Resolution Evidence & Independent Citizen Verification (Task 44)
+
+In Task 44, resolution evidence reinforces the status workflow:
+- **Pre-Resolution & Post-Resolution Attachment**: Authorized municipal officers can attach resolution evidence (`COMPLETION_PHOTO`, `COMPLETION_NOTE`, `BEFORE_AFTER_PHOTO`) while the issue is `IN_PROGRESS` or once marked `RESOLVED`.
+- **Decoupled from State Transitions**: Uploading resolution evidence does not alter issue status or mark it citizen-verified.
+- **Citizen Verification Independence**: When the issue is `RESOLVED`, the reporting citizen evaluates the defect independently. If they reject resolution (`POST /api/issues/{issueId}/verify` with `verified: false`), the issue reverts to `IN_PROGRESS` as established in Task 37, while authority resolution evidence remains safely on record in the audit trail.

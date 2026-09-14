@@ -58,6 +58,50 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
+    @ExceptionHandler(org.nagrivic.modules.media.storage.exception.StorageFileNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleStorageFileNotFoundException(
+            org.nagrivic.modules.media.storage.exception.StorageFileNotFoundException ex,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                "NOT_FOUND",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(org.nagrivic.modules.media.storage.exception.StorageUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleStorageUnavailableException(
+            org.nagrivic.modules.media.storage.exception.StorageUnavailableException ex,
+            HttpServletRequest request
+    ) {
+        log.error("Storage backend unavailable at URI: {}", request.getRequestURI(), ex);
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "STORAGE_UNAVAILABLE",
+                "Storage service is temporarily unavailable. Please try again later.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    @ExceptionHandler(org.nagrivic.modules.media.storage.exception.StorageException.class)
+    public ResponseEntity<ErrorResponse> handleStorageException(
+            org.nagrivic.modules.media.storage.exception.StorageException ex,
+            HttpServletRequest request
+    ) {
+        log.error("Storage error at URI: {}", request.getRequestURI(), ex);
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "STORAGE_ERROR",
+                "A storage error occurred while processing the request.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
     @ExceptionHandler(org.nagrivic.modules.auth.exception.AuthException.class)
     public ResponseEntity<ErrorResponse> handleAuthException(
             org.nagrivic.modules.auth.exception.AuthException ex,
@@ -95,6 +139,23 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT.value(),
                 "CONFLICT",
                 ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler({
+            jakarta.persistence.OptimisticLockException.class,
+            org.springframework.orm.ObjectOptimisticLockingFailureException.class
+    })
+    public ResponseEntity<ErrorResponse> handleOptimisticLockException(
+            Exception ex,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.CONFLICT.value(),
+                "CONFLICT",
+                "This record was modified by another administrator. Please reload and try again.",
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);

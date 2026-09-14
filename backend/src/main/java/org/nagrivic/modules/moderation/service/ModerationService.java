@@ -17,9 +17,31 @@ public interface ModerationService {
     ModerationReportResponse submitReport(CreateReportRequest request);
 
     /**
-     * Lists moderation reports in the moderation queue (moderators/admins only).
+     * Lists moderation reports in the moderation queue with optional filters (moderators/admins only).
      */
-    Page<ModerationReportResponse> getReports(ReportStatus status, Pageable pageable);
+    Page<ModerationReportResponse> getReports(
+            ReportStatus status,
+            ModerationTargetType targetType,
+            org.nagrivic.modules.moderation.model.ModerationReason reason,
+            Pageable pageable
+    );
+
+    /**
+     * Overloaded listing for backwards compatibility.
+     */
+    default Page<ModerationReportResponse> getReports(ReportStatus status, Pageable pageable) {
+        return getReports(status, null, null, pageable);
+    }
+
+    /**
+     * Retrieves rich, safe detail for a specific moderation report (moderators/admins only).
+     */
+    ModerationReportDetailResponse getReportDetail(UUID reportId);
+
+    /**
+     * Aggregates moderation queue summary counts (moderators/admins only).
+     */
+    ModerationSummaryResponse getSummary();
 
     /**
      * Marks a report as IN_REVIEW by a moderator.

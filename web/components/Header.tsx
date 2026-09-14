@@ -47,6 +47,12 @@ export function Header() {
             Civic Map
           </Link>
           <Link
+            href="/accountability"
+            className={`nav-link ${isActive('/accountability') ? 'active' : ''}`}
+          >
+            Accountability
+          </Link>
+          <Link
             href="/#how-it-works"
             className="nav-link"
           >
@@ -176,6 +182,13 @@ export function Header() {
             className={`nav-link ${isActive('/map') ? 'active' : ''}`}
           >
             Civic Map
+          </Link>
+          <Link
+            href="/accountability"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`nav-link ${isActive('/accountability') ? 'active' : ''}`}
+          >
+            Accountability
           </Link>
           <Link
             href="/#how-it-works"

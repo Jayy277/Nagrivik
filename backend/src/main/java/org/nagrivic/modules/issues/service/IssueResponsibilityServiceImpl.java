@@ -116,27 +116,64 @@ public class IssueResponsibilityServiceImpl implements IssueResponsibilityServic
         IssueEntity issue = issueRepository.findById(issueId)
                 .orElseThrow(() -> new ResourceNotFoundException("Issue", issueId));
 
-        org.nagrivic.modules.issues.model.ResponsibilityStatus prevStatus = issue.getResponsibilityStatus();
+        ResponsibilityStatus prevStatus = issue.getResponsibilityStatus();
         resolveResponsibility(issue);
         IssueEntity saved = issueRepository.save(issue);
 
-        if (saved.getResponsibilityStatus() == org.nagrivic.modules.issues.model.ResponsibilityStatus.RESOLVED) {
-            java.util.Map<String, Object> data = new java.util.HashMap<>();
-            if (saved.getCivicBody() != null) data.put("civicBodyId", saved.getCivicBody().getId().toString());
-            if (saved.getCity() != null) data.put("cityId", saved.getCity().getId().toString());
-            if (saved.getWard() != null) data.put("wardId", saved.getWard().getId().toString());
-            if (saved.getDepartment() != null) data.put("departmentId", saved.getDepartment().getId().toString());
+        if (saved.getResponsibilityStatus() == ResponsibilityStatus.RESOLVED) {
+            recordResolutionActivityAndNotify(saved, prevStatus);
+        }
+    }
 
-            org.nagrivic.modules.activity.model.IssueActivityType eventType =
-                    (prevStatus == org.nagrivic.modules.issues.model.ResponsibilityStatus.RESOLVED)
-                            ? org.nagrivic.modules.activity.model.IssueActivityType.RESPONSIBILITY_RE_RESOLVED
-                            : org.nagrivic.modules.activity.model.IssueActivityType.RESPONSIBILITY_RESOLVED;
-
-            issueActivityService.recordActivity(saved, eventType, null, data);
-
-            if (prevStatus != org.nagrivic.modules.issues.model.ResponsibilityStatus.RESOLVED) {
-                notificationService.handleResponsibilityResolved(saved);
+    @Override
+    public int reResolveUnresolvedIssues() {
+        java.util.List<IssueEntity> unresolved = issueRepository.findByResponsibilityStatus(ResponsibilityStatus.UNRESOLVED);
+        int resolvedCount = 0;
+        for (IssueEntity issue : unresolved) {
+            resolveResponsibility(issue);
+            IssueEntity saved = issueRepository.save(issue);
+            if (saved.getResponsibilityStatus() == ResponsibilityStatus.RESOLVED) {
+                resolvedCount++;
+                recordResolutionActivityAndNotify(saved, ResponsibilityStatus.UNRESOLVED);
             }
+        }
+        log.info("Re-resolved {} previously unresolved issues into RESOLVED status (scanned {} issues)", resolvedCount, unresolved.size());
+        return resolvedCount;
+    }
+
+    @Override
+    public int reResolveAllIssues() {
+        java.util.List<IssueEntity> allIssues = issueRepository.findAll();
+        int updatedCount = 0;
+        for (IssueEntity issue : allIssues) {
+            ResponsibilityStatus prevStatus = issue.getResponsibilityStatus();
+            resolveResponsibility(issue);
+            IssueEntity saved = issueRepository.save(issue);
+            if (saved.getResponsibilityStatus() == ResponsibilityStatus.RESOLVED) {
+                updatedCount++;
+                recordResolutionActivityAndNotify(saved, prevStatus);
+            }
+        }
+        log.info("Re-evaluated civic responsibility for all {} issues ({} currently RESOLVED)", allIssues.size(), updatedCount);
+        return updatedCount;
+    }
+
+    private void recordResolutionActivityAndNotify(IssueEntity saved, ResponsibilityStatus prevStatus) {
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        if (saved.getCivicBody() != null) data.put("civicBodyId", saved.getCivicBody().getId().toString());
+        if (saved.getCity() != null) data.put("cityId", saved.getCity().getId().toString());
+        if (saved.getWard() != null) data.put("wardId", saved.getWard().getId().toString());
+        if (saved.getDepartment() != null) data.put("departmentId", saved.getDepartment().getId().toString());
+
+        org.nagrivic.modules.activity.model.IssueActivityType eventType =
+                (prevStatus == ResponsibilityStatus.RESOLVED)
+                        ? org.nagrivic.modules.activity.model.IssueActivityType.RESPONSIBILITY_RE_RESOLVED
+                        : org.nagrivic.modules.activity.model.IssueActivityType.RESPONSIBILITY_RESOLVED;
+
+        issueActivityService.recordActivity(saved, eventType, null, data);
+
+        if (prevStatus != ResponsibilityStatus.RESOLVED) {
+            notificationService.handleResponsibilityResolved(saved);
         }
     }
 }

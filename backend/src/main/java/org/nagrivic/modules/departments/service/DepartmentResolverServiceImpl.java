@@ -47,8 +47,9 @@ public class DepartmentResolverServiceImpl implements DepartmentResolverService 
             return Optional.empty();
         }
 
-        // 2. Filter to active departments of the matching civic body
+        // 2. Filter to active departments of the matching civic body and active mapping
         List<DepartmentEntity> candidateDepartments = catMappings.stream()
+                .filter(CategoryDepartmentMappingEntity::isActive)
                 .map(CategoryDepartmentMappingEntity::getDepartment)
                 .filter(dept -> dept.isActive() && dept.getCivicBody().getId().equals(civicBody.getId()))
                 .distinct()
